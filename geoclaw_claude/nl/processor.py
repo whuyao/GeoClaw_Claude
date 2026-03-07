@@ -95,6 +95,16 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 | memory_search | 搜索记忆 | query(关键词) |
 | help | 帮助信息 | topic(可选主题) |
 | unknown | 无法识别 | reason(说明) |
+| mobility_load | 读入GPS轨迹/移动性数据 | path(文件路径), user_id_col, tracked_at_col |
+| mobility_staypoints | 生成停留点 | dist_threshold(米,默认100), time_threshold(分钟,默认5) |
+| mobility_triplegs | 生成出行段 | (无额外参数，自动使用已有停留点) |
+| mobility_hierarchy | 一键生成完整移动性层级 | dist_threshold, time_threshold, location_epsilon |
+| mobility_transport | 预测出行方式 | method(simple-coarse/simple-combined) |
+| mobility_locations | 识别重要地点/家工作地 | epsilon(米), method(osna/freq) |
+| mobility_summary | 生成移动性指标摘要 | user_id(可选) |
+| mobility_plot | 移动性地图可视化 | layers(pf/sp/triplegs/locs), user_id |
+| mobility_heatmap | 活动时间热力图 | user_id(可选) |
+| mobility_modal | 出行方式构成图 | metric(count/duration) |
 
 ## 输出格式
 
@@ -351,7 +361,7 @@ class NLProcessor:
             )
 
         # KDE 核密度
-        KDE_WORDS = ["核密度", "密度", "kde", "热力图", "热点"]
+        KDE_WORDS = ["核密度", "密度", "kde", "热点"]  # 注：热力图由 mobility_heatmap 优先处理
         if any(w in t for w in KDE_WORDS):
             layer = self._extract_layer_name(text) or ctx.get("last_layer", "")
             bw    = self._extract_number_with_keyword(text, ["带宽", "bandwidth"], 0.05)
@@ -414,6 +424,16 @@ class NLProcessor:
                 explanation=f"分区统计 ({stat}): {zones} × {points}",
             )
 
+        # 移动性地图（在普通制图之前检测，避免被 render 抢占）
+        if any(w in t for w in ["移动性地图", "轨迹地图", "出行地图"]):
+            return ParsedIntent(
+                action="mobility_plot",
+                params={},
+                targets=[],
+                confidence=0.88,
+                explanation="移动性数据分层地图",
+            )
+
         # 制图 / 可视化
         RENDER_WORDS = ["制图", "可视化", "画图", "绘图", "显示", "render", "地图", "出图"]
         if any(w in t for w in RENDER_WORDS):
@@ -454,6 +474,113 @@ class NLProcessor:
                 targets=[],
                 confidence=0.85 if minutes else 0.6,
                 explanation=f"等时圈: {minutes}分钟 ({ntype})",
+            )
+
+        # 移动性分析
+        MOBILITY_LOAD = ["轨迹", "gps", "positionfix", "移动数据", "read_pos"]
+        if any(w in t for w in MOBILITY_LOAD):
+            path = self._extract_filepath(text)
+            return ParsedIntent(
+                action="mobility_load",
+                params={"path": path or ""},
+                targets=[],
+                confidence=0.85 if path else 0.6,
+                explanation=f"读入移动性数据: {path or '(未指定路径)'}",
+            )
+
+        MOBILITY_SP = ["停留点", "staypoint", "驻留", "停留检测"]
+        if any(w in t for w in MOBILITY_SP):
+            dist = self._extract_number_with_keyword(text, ["距离", "dist", "米"], 100)
+            time = self._extract_number_with_keyword(text, ["时间", "分钟", "min"], 5)
+            return ParsedIntent(
+                action="mobility_staypoints",
+                params={"dist_threshold": dist, "time_threshold": time},
+                targets=[],
+                confidence=0.88,
+                explanation=f"生成停留点 (dist={dist}m, time={time}min)",
+            )
+
+        MOBILITY_H = ["移动性分析", "出行分析", "全层级", "hierarchy",
+                      "完整移动", "轨迹分析", "mobility"]
+        if any(w in t for w in MOBILITY_H):
+            return ParsedIntent(
+                action="mobility_hierarchy",
+                params={},
+                targets=[],
+                confidence=0.85,
+                explanation="一键生成完整移动性数据层级",
+            )
+
+        MOBILITY_TR = ["出行段", "tripleg", "出行模式", "交通方式", "transport", "出行方式", "transport mode"]
+        if any(w in t for w in MOBILITY_TR):
+            if any(w in t for w in ["预测", "识别", "分类", "predict"]):
+                return ParsedIntent(
+                    action="mobility_transport",
+                    params={"method": "simple-coarse"},
+                    targets=[],
+                    confidence=0.87,
+                    explanation="预测出行方式（步行/骑行/驾车/火车）",
+                )
+            return ParsedIntent(
+                action="mobility_triplegs",
+                params={},
+                targets=[],
+                confidence=0.85,
+                explanation="生成出行段",
+            )
+
+        MOBILITY_LOC = ["重要地点", "家", "工作地", "location", "聚类地点", "home", "work"]
+        if any(w in t for w in MOBILITY_LOC) and any(
+            w in t for w in ["识别", "检测", "生成", "聚类"]
+        ):
+            method = "osna" if any(w in t for w in ["家", "工作", "home", "work"]) else "freq"
+            return ParsedIntent(
+                action="mobility_locations",
+                params={"method": method},
+                targets=[],
+                confidence=0.85,
+                explanation=f"识别重要地点（方法: {method}）",
+            )
+
+        MOBILITY_SUM = ["移动性指标", "移动性摘要", "出行摘要", "mobility summary",
+                        "回转半径", "跳跃距离"]
+        if any(w in t for w in MOBILITY_SUM):
+            return ParsedIntent(
+                action="mobility_summary",
+                params={},
+                targets=[],
+                confidence=0.87,
+                explanation="生成移动性综合指标摘要",
+            )
+
+        MOBILITY_PLOT = ["移动性地图", "轨迹地图", "mobility plot", "出行地图", "mobility map"]
+        if any(w in t for w in MOBILITY_PLOT):
+            return ParsedIntent(
+                action="mobility_plot",
+                params={},
+                targets=[],
+                confidence=0.85,
+                explanation="移动性数据分层地图",
+            )
+
+        MOBILITY_HEAT = ["活动热力图", "时间热力图", "heatmap", "活动时间", "热力图"]
+        if any(w in t for w in MOBILITY_HEAT):
+            return ParsedIntent(
+                action="mobility_heatmap",
+                params={},
+                targets=[],
+                confidence=0.87,
+                explanation="活动时间热力图（星期 × 小时）",
+            )
+
+        MOBILITY_MODAL = ["出行方式图", "modal", "交通构成", "出行构成"]
+        if any(w in t for w in MOBILITY_MODAL):
+            return ParsedIntent(
+                action="mobility_modal",
+                params={},
+                targets=[],
+                confidence=0.85,
+                explanation="出行方式构成图",
             )
 
         # 检测更新

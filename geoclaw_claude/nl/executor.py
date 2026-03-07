@@ -275,6 +275,28 @@ class NLExecutor:
             return self._do_download_osm(p, t)
 
         # ── 系统命令 ────────────────────────────────────────────────────────
+        # ── 移动性分析 ────────────────────────────────────────────────────────
+        if a == "mobility_load":
+            return self._do_mobility_load(p, t)
+        if a == "mobility_staypoints":
+            return self._do_mobility_staypoints(p, t)
+        if a == "mobility_triplegs":
+            return self._do_mobility_triplegs(p, t)
+        if a == "mobility_hierarchy":
+            return self._do_mobility_hierarchy(p, t)
+        if a == "mobility_transport":
+            return self._do_mobility_transport(p, t)
+        if a == "mobility_locations":
+            return self._do_mobility_locations(p, t)
+        if a == "mobility_summary":
+            return self._do_mobility_summary(p, t)
+        if a == "mobility_plot":
+            return self._do_mobility_plot(p, t)
+        if a == "mobility_heatmap":
+            return self._do_mobility_heatmap(p, t)
+        if a == "mobility_modal":
+            return self._do_mobility_modal(p, t)
+
         if a == "check_update":
             from geoclaw_claude.updater import check
             result = check(verbose=False)
@@ -518,6 +540,121 @@ class NLExecutor:
         self.add_layer(name, layer)
         return layer
 
+    # ── 移动性分析操作 ───────────────────────────────────────────────────────
+
+    def _do_mobility_load(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import read_positionfixes
+        path = p.get("path", "")
+        if not path:
+            raise ValueError("请指定 GPS 数据文件路径，例如：读入 gps_tracks.csv")
+        pfs = read_positionfixes(path)
+        self.add_layer("positionfixes", pfs)
+        return pfs
+
+    def _do_mobility_staypoints(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import generate_staypoints
+        pfs = self._resolve_layer("positionfixes")
+        pfs_updated, sp = generate_staypoints(
+            pfs,
+            dist_threshold=float(p.get("dist_threshold", 100)),
+            time_threshold=float(p.get("time_threshold", 5)),
+        )
+        self.add_layer("positionfixes", pfs_updated)
+        self.add_layer("staypoints", sp)
+        return sp
+
+    def _do_mobility_triplegs(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import generate_triplegs
+        pfs = self._resolve_layer("positionfixes")
+        sp  = self._resolve_layer("staypoints")
+        if sp is None:
+            raise ValueError("请先生成停留点（运行：生成停留点）")
+        pfs_updated, tpls = generate_triplegs(pfs, sp)
+        self.add_layer("positionfixes", pfs_updated)
+        self.add_layer("triplegs", tpls)
+        return tpls
+
+    def _do_mobility_hierarchy(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import generate_full_hierarchy
+        pfs = self._resolve_layer("positionfixes")
+        h = generate_full_hierarchy(
+            pfs,
+            dist_threshold=float(p.get("dist_threshold", 100)),
+            time_threshold=float(p.get("time_threshold", 5)),
+            location_epsilon=float(p.get("location_epsilon", 100)),
+        )
+        for key, val in h.items():
+            self.add_layer(key, val)
+        self._layers["__mobility_hierarchy__"] = h
+        return h
+
+    def _do_mobility_transport(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import predict_transport_mode
+        tpls = self._resolve_layer("triplegs")
+        if tpls is None:
+            raise ValueError("请先生成出行段")
+        result = predict_transport_mode(tpls, method=p.get("method", "simple-coarse"))
+        self.add_layer("triplegs", result)
+        return result
+
+    def _do_mobility_locations(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import generate_locations, identify_home_work
+        sp = self._resolve_layer("staypoints")
+        if sp is None:
+            raise ValueError("请先生成停留点")
+        sp_updated, locs = generate_locations(
+            sp, epsilon=float(p.get("epsilon", 100))
+        )
+        self.add_layer("staypoints", sp_updated)
+        self.add_layer("locations", locs)
+        method = p.get("method", "")
+        if method in ("osna", "freq"):
+            try:
+                locs = identify_home_work(sp_updated, locs, method=method)
+                self.add_layer("locations", locs)
+            except Exception:
+                pass
+        return locs
+
+    def _do_mobility_summary(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import mobility_summary
+        h = self._layers.get("__mobility_hierarchy__")
+        if h is None:
+            h = {
+                "positionfixes": self._layers.get("positionfixes"),
+                "staypoints":    self._layers.get("staypoints"),
+                "triplegs":      self._layers.get("triplegs"),
+                "locations":     self._layers.get("locations"),
+            }
+            h = {k: v for k, v in h.items() if v is not None}
+        return mobility_summary(h, user_id=p.get("user_id"))
+
+    def _do_mobility_plot(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import plot_mobility_layers
+        h = self._layers.get("__mobility_hierarchy__", {
+            k: self._layers.get(k)
+            for k in ("positionfixes", "staypoints", "triplegs", "locations")
+            if self._layers.get(k) is not None
+        })
+        fig = plot_mobility_layers(h, user_id=p.get("user_id"))
+        return {"type": "mobility_map", "figure": fig}
+
+    def _do_mobility_heatmap(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import plot_activity_heatmap
+        sp = self._resolve_layer("staypoints")
+        if sp is None:
+            raise ValueError("请先生成停留点")
+        fig = plot_activity_heatmap(sp, user_id=p.get("user_id"))
+        return {"type": "activity_heatmap", "figure": fig}
+
+    def _do_mobility_modal(self, p: dict, t: list) -> any:
+        from geoclaw_claude.analysis.mobility import plot_modal_split
+        tpls = self._resolve_layer("triplegs")
+        if tpls is None:
+            raise ValueError("请先生成出行段并预测交通方式")
+        fig = plot_modal_split(tpls, metric=p.get("metric", "count"))
+        return {"type": "modal_split", "figure": fig}
+
     def _do_help(self, p: dict) -> dict:
         topic = p.get("topic", "")
         TOPICS = {
@@ -581,6 +718,8 @@ class NLExecutor:
                 return result.get("summary", "版本检测完成") if isinstance(result, dict) else str(result)
             if a == "help":
                 return result.get("help", "")[:80] + "..." if isinstance(result, dict) else str(result)
+            if a.startswith("mobility_"):
+                return f"{a.replace('mobility_', '')} 完成"
             return intent.explanation or f"{a} 完成"
         except Exception:
             return f"{intent.action} 完成"

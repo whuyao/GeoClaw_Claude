@@ -52,7 +52,7 @@ def u01_version_parse():
     assert v.major == 1 and v.minor == 2 and v.patch == 3
     assert v.raw == "1.2.3"
 
-    v2 = VersionInfo.parse("v2.0.0")
+    v2 = VersionInfo.parse("v2.2.0")
     assert v2.major == 2 and v2.minor == 0 and v2.patch == 0
 
     v3 = VersionInfo.parse("1.1")     # 只有两段

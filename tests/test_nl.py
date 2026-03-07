@@ -9,7 +9,7 @@ Copyright (c) 2025 UrbanComp Lab (https://urbancomp.net) — MIT License
   N05 - N14  规则引擎解析测试（10种核心操作）
   N15 - N17  ParsedIntent 数据类测试
   N18 - N19  GeoAgent 初始化与对话流程
-  N20        版本号 v1.3.0 验证
+  N20        版本号 v2.2.0 验证
 """
 
 import sys
@@ -258,9 +258,9 @@ test("N19 GeoAgent chat 帮助", n19_agent_chat_help)
 
 def n20_version():
     import geoclaw_claude
-    assert geoclaw_claude.__version__ == "1.3.0", \
+    assert geoclaw_claude.__version__ == "2.2.0", \
         f"期望 1.3.0，实际 {geoclaw_claude.__version__}"
-test("N20 版本号 v1.3.0", n20_version)
+test("N20 版本号 v2.2.0", n20_version)
 
 
 # ════════════════════════════════════════════════════════════
@@ -272,7 +272,7 @@ fail = [r for r in results if r[0] == "FAIL"]
 
 print(f"\n{'═'*52}")
 print(f"  NL 模块测试: {len(ok)}/{len(results)} 通过")
-print(f"  UrbanComp Lab — GeoClaw-claude v1.3.0")
+print(f"  UrbanComp Lab — GeoClaw-claude v2.2.0")
 print(f"{'═'*52}")
 
 if fail:

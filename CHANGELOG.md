@@ -4,6 +4,195 @@
 
 ---
 
+## v2.2.0 (2025-03-07)
+
+### 新增：武汉城市移动性 Demo 数据集 + 完整案例演示
+
+#### 测试数据（`data/mobility/`）
+
+新增武汉城市 GPS 轨迹测试数据集，作为移动性分析模块的标准 Demo 数据：
+
+| 文件 | 说明 |
+|------|------|
+| `wuhan_gps_tracks.csv` | 武汉城市 GPS 轨迹主数据（37,549 个轨迹点） |
+| `users_meta.csv` | 5 位用户元数据（职业/居住地/工作地/通勤方式） |
+| `generate_data.py` | 数据生成脚本（可重新生成） |
+| `README.md` | 数据格式与使用说明 |
+
+**数据规模**
+
+- 用户数：5 位武汉居民（金融/互联网/商贸/学术/医疗各一位）
+- 时间：10 天（2024-01-15 ~ 2024-01-25）
+- 轨迹点：共 37,549 个（每用户约 7,500 个）
+- 地理范围：武汉三镇（汉口/武昌/汉阳），WGS84 坐标系
+- 出行方式：地铁/公交/步行/骑行，典型城市居民作息模式
+
+**处理结果参考值**（默认参数）
+
+| 层级 | 数量 |
+|------|------|
+| 停留点 staypoints | ~1,781 |
+| 出行段 triplegs | ~1,240 |
+| 出行 trips | ~1,240 |
+| 重要地点 locations | ~20 |
+
+#### Demo 案例（`examples/wuhan_mobility_demo.py`）
+
+完整的 7 步移动性分析演示脚本，展示从原始 GPS 到可视化报告的全流程：
+
+```
+Step 1  读入 GPS 数据（read_positionfixes）
+Step 2  生成停留点（generate_staypoints）
+Step 3  生成出行段 + 预测出行方式（generate_triplegs + predict_transport_mode）
+Step 4  生成出行与重要地点（generate_trips + generate_locations）
+Step 5  计算移动性指标（radius_of_gyration + jump_lengths + mobility_summary）
+Step 6  识别家/工作地（identify_home_work，OSNA 方法）
+Step 7  可视化（5 张图表）
+```
+
+生成可视化图表（输出至 `output/mobility_demo/`）：
+
+| 图表 | 内容 |
+|------|------|
+| `01_mobility_layers_map.png` | 分层移动性地图（停留点+出行段+重要地点叠加） |
+| `02_modal_split.png` | 出行方式构成图（饼图+条形图） |
+| `03_activity_heatmap_all.png` | 全体用户活动时间热力图（星期×小时矩阵） |
+| `03b_activity_heatmap_u0.png` | 单用户（金融从业者）活动时间热力图 |
+| `04_mobility_metrics_dashboard.png` | 移动性指标综合仪表盘 |
+| `05_user1_trajectory.png` | 单用户（光谷互联网工程师）个人轨迹地图 |
+
+运行方式：
+
+```bash
+python examples/wuhan_mobility_demo.py
+```
+
+#### 算法来源声明（trackintel）
+
+移动性分析模块中的核心轨迹数据处理算法来自 **trackintel** 开源框架：
+
+> **trackintel**: https://github.com/mie-lab/trackintel
+>
+> 开发团队：ETH Zurich · Mobility Information Engineering Lab
+>
+> 引用论文：
+> Martin, H., Hong, Y., Wiedemann, N., Bucher, D., & Raubal, M. (2023).
+> Trackintel: An open-source Python library for human mobility analysis.
+> *Computers, Environment and Urban Systems*, 101, 101938.
+> DOI: 10.1016/j.compenvurbsys.2023.101938
+
+GeoClaw-claude 在 trackintel 基础上提供：
+- 与 GeoClaw-claude 生态一致的 API 封装（`geoclaw_claude.analysis.mobility`）
+- 与 GeoLayer/GeoClawProject 的无缝集成
+- 自然语言操作接口（通过 NL 模块）
+- UrbanComp Lab 风格的可视化主题
+
+#### 其他修复
+
+- `read_positionfixes()` 修复：时间戳格式解析兼容 `format="mixed"`（支持 ISO8601 含微秒格式）
+- `radius_of_gyration()` 修复：trackintel 实际输出列名为 `radius_gyration`（而非 `radius_of_gyration`）
+- `mobility_summary()` 修复：自动识别 trackintel 版本间的列名差异
+
+---
+
+## v2.1.0 (2025-03-07)
+
+### 新增：复杂网络与人类移动性分析（trackintel 集成）
+
+新增 `geoclaw_claude/analysis/mobility/` 模块，整合 [trackintel](https://github.com/mie-lab/trackintel) 框架，
+提供完整的人类移动性数据分析能力。
+
+#### 数据层级模型
+
+```
+positionfixes（GPS 原始轨迹点）
+    ↓ generate_staypoints()    停留检测（滑动窗口，空间+时间双阈值）
+staypoints（停留点）
+    ↓ generate_triplegs()      出行段提取（停留点间的连续移动）
+triplegs（出行段）
+    ↓ generate_trips()         出行聚合（活动停留点间的完整出行）
+trips（出行）
+    ↓ generate_locations()     地点聚类（DBSCAN，识别家/工作地等）
+locations（重要地点）
+```
+
+#### 核心功能（`mobility/core.py`）
+
+| 函数 | 功能 |
+|------|------|
+| `read_positionfixes()` | 读入 GPS 数据（CSV/GeoDataFrame/DataFrame，自动规范化） |
+| `generate_staypoints()` | 停留点检测（dist_threshold / time_threshold） |
+| `generate_triplegs()` | 出行段提取 |
+| `generate_trips()` | 完整出行生成 |
+| `generate_locations()` | 重要地点聚类（DBSCAN） |
+| `generate_full_hierarchy()` | **一键生成完整层级**（positionfixes → locations） |
+| `predict_transport_mode()` | 出行方式识别（步行/骑行/驾车/火车） |
+| `label_activity_staypoints()` | 停留点活动语义标注 |
+
+#### 移动性指标（`mobility/metrics.py`）
+
+| 函数 | 指标说明 |
+|------|---------|
+| `radius_of_gyration()` | 回转半径（活动范围大小，按次数或时长加权） |
+| `jump_lengths()` | 跳跃距离分布（单次出行距离统计） |
+| `modal_split()` | 出行方式构成（次数/时长/距离口径） |
+| `tracking_quality()` | 轨迹时间覆盖率（数据完整性评估） |
+| `mobility_summary()` | 综合摘要（用户数、各层数量、核心指标汇总） |
+| `identify_home_work()` | 家/工作地识别（OSNA 作息模式法 / 频率法） |
+
+#### 可视化（`mobility/visualization.py`）
+
+- `plot_mobility_layers()` — 分层地图（GPS点/停留点/出行段/重要地点叠加，支持按交通方式着色）
+- `plot_modal_split()` — 出行方式构成图（饼图 + 条形图）
+- `plot_activity_heatmap()` — 活动时间热力图（星期 × 小时矩阵）
+- `plot_mobility_metrics()` — 移动性指标仪表盘（回转半径/跳跃距离/覆盖率/出行方式）
+
+#### 自然语言操作（NL 模块扩展）
+
+新增 10 类移动性关键词识别：
+
+```bash
+geoclaw-claude ask "读入 gps_tracks.csv"
+geoclaw-claude ask "生成停留点（距离阈值100米，时间阈值5分钟）"
+geoclaw-claude ask "一键完成移动性分析"
+geoclaw-claude ask "预测出行方式"
+geoclaw-claude ask "识别家和工作地"
+geoclaw-claude ask "计算移动性指标摘要"
+geoclaw-claude ask "生成轨迹地图"
+geoclaw-claude ask "时间热力图"
+geoclaw-claude ask "读入gps数据然后生成停留点"   # 多步流水线
+```
+
+#### Python API 示例
+
+```python
+from geoclaw_claude.analysis.mobility import (
+    read_positionfixes, generate_full_hierarchy,
+    mobility_summary, plot_mobility_layers, plot_activity_heatmap
+)
+
+# 读入 GPS 数据
+pfs = read_positionfixes("gps_tracks.csv")
+
+# 一键生成完整层级
+h = generate_full_hierarchy(pfs, dist_threshold=100, time_threshold=5)
+# → positionfixes / staypoints / triplegs / trips / locations
+
+# 指标摘要
+summary = mobility_summary(h)
+# → {n_users, n_staypoints, radius_of_gyration_m, jump_length_m, modal_split, ...}
+
+# 可视化
+plot_mobility_layers(h, save_path="mobility_map.png")
+plot_activity_heatmap(h["staypoints"], save_path="activity_heatmap.png")
+```
+
+#### 测试
+- 移动性模块测试 **20/20 全部通过**（M01-M20）
+- 覆盖：数据读入、层级生成、指标计算、可视化、NL 解析
+
+---
+
 ## v2.0.0 (2025-03-07)
 
 ### 重大版本升级 — 自然语言 GIS 操作系统全面成熟

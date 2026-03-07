@@ -2,7 +2,7 @@
 
 > **UrbanComp Lab** (https://urbancomp.net) 出品的轻量级 Python 地理信息分析工具集。
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 [![Lab](https://img.shields.io/badge/lab-UrbanComp-purple)](https://urbancomp.net)
@@ -44,6 +44,9 @@ geoclaw-claude chat
 | `utils/coord_transform` | WGS84 ↔ GCJ-02 ↔ BD-09 坐标互转 |
 | `memory/` | 短期记忆（会话缓存）+ 长期记忆（持久化知识库） |
 | `nl/` | **自然语言操作**（NLProcessor / NLExecutor / GeoAgent） |
+| `analysis/mobility/` | **人类移动性分析**（trackintel 集成：停留点/出行段/路线/地点/指标） |
+| `data/mobility/` | 武汉城市 GPS 轨迹测试数据集（37,549 点，5 用户，10 天） |
+| `examples/` | 完整 Demo 案例（`wuhan_mobility_demo.py`：7 步分析+5 张图表） |
 | `skills/` | 用户自定义分析 Skill 脚本系统 + AI 接口 |
 | `updater` | 版本自检、自动拉取更新、全面健康检测 |
 
@@ -391,6 +394,20 @@ GeoClaw_Claude/
 
 完整记录详见 [CHANGELOG.md](CHANGELOG.md)
 
+### v2.2.0 (2025-03-07) — Demo 数据集 + 算法来源声明
+
+新增武汉城市 GPS 轨迹测试数据集（`data/mobility/`）：37,549 个轨迹点，5 位武汉居民 10 天数据。
+新增完整 Demo 脚本（`examples/wuhan_mobility_demo.py`）：7 步分析流程，生成 5 张可视化图表。
+明确声明：轨迹数据处理算法来源于 **trackintel**（mie-lab/trackintel，ETH Zurich），详见下方说明。
+
+### v2.1.0 (2025-03-07) — 人类移动性分析（trackintel 集成）
+
+新增 `analysis/mobility/` 模块，整合 trackintel 框架：
+GPS轨迹 → 停留点 → 出行段 → 出行 → 重要地点完整层级；
+回转半径/跳跃距离/交通方式识别/家工作地识别；
+分层地图/活动热力图/出行方式构成图/指标仪表盘。
+NL 解析器新增 10 类移动性操作。测试 **20/20 通过**。
+
 ### v2.0.0 (2025-03-07) — 重大版本升级
 
 标志着 GeoClaw-claude 正式迈入**自然语言驱动的智能 GIS 平台**时代。
@@ -415,6 +432,46 @@ GeoClaw_Claude/
 ### v0.2.0 / v0.1.0
 
 CLI 骨架与 Skill 原型（v0.2.0）；核心图层类、OSM 下载、空间分析初始版本（v0.1.0）。
+
+---
+
+
+---
+
+## 算法来源声明：trackintel
+
+GeoClaw-claude 的移动性分析模块（`geoclaw_claude/analysis/mobility/`）中的核心轨迹数据处理算法，
+来自 ETH Zurich 开发的开源框架 **trackintel**。
+
+| | |
+|--|--|
+| **项目地址** | https://github.com/mie-lab/trackintel |
+| **开发团队** | Mobility Information Engineering Lab, ETH Zurich (mie-lab.ethz.ch) |
+| **版本** | trackintel ≥ 1.4.2 |
+
+**引用论文**
+
+> Martin, H., Hong, Y., Wiedemann, N., Bucher, D., & Raubal, M. (2023).
+> Trackintel: An open-source Python library for human mobility analysis.
+> *Computers, Environment and Urban Systems*, 101, 101938.
+> https://doi.org/10.1016/j.compenvurbsys.2023.101938
+
+**trackintel 提供的核心算法**
+
+- `generate_staypoints()` — 基于滑动窗口的停留点检测
+- `generate_triplegs()` — 停留点间出行段提取
+- `generate_trips()` — 活动停留点间出行聚合
+- `generate_locations()` — DBSCAN 重要地点聚类
+- `predict_transport_mode()` — 基于速度特征的出行方式识别
+- `location_identifier()` — OSNA 方法家/工作地识别
+- `radius_gyration()` — 回转半径计算
+- `jump_length()` — 跳跃距离统计
+- `temporal_tracking_quality()` — 时间覆盖率评估
+
+**GeoClaw-claude 的贡献**
+
+GeoClaw-claude 在 trackintel 基础上提供统一的 API 封装、与 GeoLayer 生态的集成、
+自然语言操作接口和 UrbanComp Lab 风格可视化，原始算法实现归属 trackintel 项目及其作者。
 
 ---
 
