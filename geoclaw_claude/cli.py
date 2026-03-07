@@ -442,6 +442,136 @@ def main():
         Path(output).write_text(json_str, encoding="utf-8")
         _ok(f"已导出 {len(mem.ltm)} 条记忆 → {output}")
 
+    # ── check ──────────────────────────────────────────────────────────────────
+    @cli.command()
+    @click.option("--json", "as_json", is_flag=True, default=False,
+                  help="以 JSON 格式输出结果")
+    def check(as_json):
+        """🔍 检测是否有可用的新版本。
+
+        \b
+        示例:
+          geoclaw-claude check
+          geoclaw-claude check --json
+        """
+        from geoclaw_claude.updater import check as do_check
+        result = do_check(verbose=not as_json)
+        if as_json:
+            import json
+            click.echo(json.dumps({
+                "local_version":  result.local_version,
+                "remote_version": result.remote_version,
+                "has_update":     result.has_update,
+                "status":         result.status,
+                "summary":        result.summary(),
+                "latest_commit":  result.latest_commit,
+                "latest_message": result.latest_message,
+            }, ensure_ascii=False, indent=2))
+        else:
+            if result.has_update:
+                _warn(result.summary())
+            elif result.error:
+                _err(result.summary())
+            else:
+                _ok(result.summary())
+
+    # ── update ──────────────────────────────────────────────────────────────────
+    @cli.command()
+    @click.option("--force", "-f", is_flag=True, default=False,
+                  help="强制更新，即使已是最新版本")
+    @click.option("--test", "run_tests", is_flag=True, default=False,
+                  help="更新后运行测试套件验证")
+    @click.option("--no-install", is_flag=True, default=False,
+                  help="只 git pull，不执行 pip install（高级用法）")
+    def update(force, run_tests, no_install):
+        """⬆  拉取 GitHub 最新代码并自动安装。
+
+        \b
+        流程:
+          1. 检测远程最新版本
+          2. git pull origin main
+          3. pip install -e .
+          4. （可选）运行测试套件
+
+        \b
+        示例:
+          geoclaw-claude update
+          geoclaw-claude update --force
+          geoclaw-claude update --test
+        """
+        from geoclaw_claude.updater import update as do_update
+        print("\n  开始更新...\n")
+        result = do_update(verbose=True, run_tests=run_tests, force=force)
+        print()
+        if result.success:
+            if result.previous_version == result.current_version:
+                _ok(result.summary())
+            else:
+                _ok(f"更新完成: v{result.previous_version} → v{result.current_version}")
+                print(f"\n  建议重启 Python 环境以加载新版本。")
+        else:
+            _err(result.summary())
+            sys.exit(1)
+
+    # ── self-check ──────────────────────────────────────────────────────────────
+    @cli.command("self-check")
+    @click.option("--json", "as_json", is_flag=True, default=False,
+                  help="以 JSON 格式输出报告")
+    @click.option("--quick", is_flag=True, default=False,
+                  help="快速模式：跳过远程版本检测")
+    def self_check_cmd(as_json, quick):
+        """🩺 全面自我检测：版本、模块完整性、依赖、更新状态。
+
+        \b
+        示例:
+          geoclaw-claude self-check
+          geoclaw-claude self-check --json
+          geoclaw-claude self-check --quick
+        """
+        from geoclaw_claude.updater import self_check, print_self_check
+
+        if quick:
+            # 快速模式：只检测本地状态
+            print("\n  快速检测（跳过远程版本检测）...")
+            from geoclaw_claude import __version__, __author__
+            import importlib
+            modules = [
+                "geoclaw_claude.core.layer",
+                "geoclaw_claude.core.project",
+                "geoclaw_claude.analysis.spatial_ops",
+                "geoclaw_claude.memory",
+                "geoclaw_claude.cli",
+            ]
+            ok = fail = 0
+            for m in modules:
+                try:
+                    importlib.import_module(m)
+                    ok += 1
+                except Exception:
+                    fail += 1
+            _ok(f"v{__version__} — {ok} 模块正常{', ' + str(fail) + ' 失败' if fail else ''}")
+            return
+
+        report = self_check()
+
+        if as_json:
+            import json
+            click.echo(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print_self_check(report)
+
+            # 给出建议
+            if report["update"]["has_update"]:
+                _warn("发现新版本，运行 `geoclaw-claude update` 升级")
+            failed_mods = [k for k, v in report["modules"].items()
+                           if k != "_summary" and v != "ok"]
+            missing_deps = [k for k, v in report["dependencies"].items()
+                            if k != "_summary" and v == "NOT INSTALLED"]
+            if failed_mods or missing_deps:
+                _warn(f"发现问题，建议重新安装: pip install -e .")
+            elif not report["update"]["has_update"] and not failed_mods:
+                _ok("系统运行正常，无需操作")
+
     cli()
 
 

@@ -4,6 +4,43 @@
 
 ---
 
+## v1.2.0 (2025-03-07)
+
+### 新增：自我检测与自动更新（Updater 模块）
+
+**`geoclaw_claude/updater.py`**
+
+- `check()` — 检测 GitHub 最新版本，与本地对比，返回 `CheckResult`（状态/版本/commit 信息）
+- `update()` — 自动拉取最新代码并安装：
+  1. 版本检测（已最新则跳过，`--force` 强制执行）
+  2. `git pull origin main`
+  3. `pip install -e .`
+  4. 打印 CHANGELOG diff
+  5. 可选 `--test`：更新后自动运行测试套件验证
+- `self_check()` — 全面健康检查报告（版本 + 模块完整性 + 依赖状态 + Git 信息 + 更新状态）
+- `changelog_diff()` — 从 GitHub Raw 获取指定版本之后的 CHANGELOG 内容
+- `VersionInfo` — 语义版本解析与比较（`<` / `==` / `<=`）
+- `CheckResult` / `UpdateResult` — 结果数据类，含 `.summary()` 友好输出
+
+**CLI 新增 3 个命令**
+```
+geoclaw-claude check               # 检测是否有新版本
+geoclaw-claude check --json        # JSON 输出（适合脚本化）
+geoclaw-claude update              # 拉取最新代码并安装
+geoclaw-claude update --force      # 强制更新（即使已是最新）
+geoclaw-claude update --test       # 更新后运行测试套件
+geoclaw-claude self-check          # 全面健康检测报告
+geoclaw-claude self-check --quick  # 快速模式（跳过远程检测）
+geoclaw-claude self-check --json   # JSON 输出
+```
+
+### 测试
+- Updater 测试 20/20 通过（U01-U20）
+- Memory 回归测试 9/9 通过
+- 覆盖：VersionInfo 解析比较、网络请求、check/update/self_check 逻辑、CLI 命令注册
+
+---
+
 ## v1.1.0 (2025-03-07)
 
 ### 新增：Memory 系统
