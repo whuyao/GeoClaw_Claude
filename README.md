@@ -2,7 +2,7 @@
 
 > **UrbanComp Lab** (https://urbancomp.net) 出品的轻量级 Python 地理信息分析工具集。
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 [![Lab](https://img.shields.io/badge/lab-UrbanComp-purple)](https://urbancomp.net)
@@ -44,6 +44,7 @@ geoclaw-claude update
 | `utils/coord_transform` | WGS84 ↔ GCJ-02 ↔ BD-09 坐标互转 |
 | `memory/` | 短期记忆（会话缓存）+ 长期记忆（持久化知识库） |
 | `skills/` | 用户自定义分析 Skill 脚本系统 + AI 接口 |
+| `nl/` | 自然语言操作（NLProcessor / NLExecutor / GeoAgent） |
 | `updater` | 版本自检、自动拉取更新、全面健康检测 |
 
 ---
@@ -87,6 +88,18 @@ geoclaw-claude memory learn "分析结论" "内容"    # 手动存入知识
 geoclaw-claude memory forget <entry_id>          # 删除记忆条目
 geoclaw-claude memory compact                    # 压缩旧记忆
 geoclaw-claude memory export -o backup.json      # 导出为 JSON
+```
+
+### 🗣 自然语言操作
+
+```bash
+geoclaw-claude ask "对医院做1公里缓冲区"      # 单条自然语言 GIS 指令
+geoclaw-claude ask "下载武汉市公园数据"        # 下载 + 命名图层
+geoclaw-claude ask "加载data/h.geojson 然后做500米缓冲区"  # 多步流水线
+geoclaw-claude ask --dry-run "核密度分析"      # 只解析意图，输出 JSON
+geoclaw-claude ask --rule "裁剪到边界范围"     # 强制规则模式（离线）
+geoclaw-claude chat                            # 交互式多轮对话
+geoclaw-claude chat --ai                       # 强制 AI 模式
 ```
 
 ### 🔄 自我检测与自动更新
@@ -378,6 +391,7 @@ GeoClaw_Claude/
 
 | 版本 | 亮点 |
 |------|------|
+| **v1.3.0** | 自然语言操作（`ask` / `chat` 命令，AI+规则双模式解析） |
 | **v1.2.0** | `check` / `update` / `self-check` 自动更新机制 |
 | **v1.1.0** | Memory 系统（短期 + 长期记忆，`memory` CLI 命令组） |
 | **v1.0.0** | 正式版本：完整 CLI、Skill 系统、路网/栅格分析 |

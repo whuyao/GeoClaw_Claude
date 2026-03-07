@@ -572,6 +572,98 @@ def main():
             elif not report["update"]["has_update"] and not failed_mods:
                 _ok("系统运行正常，无需操作")
 
+    # ── ask (单条自然语言指令) ─────────────────────────────────────────────────
+    @cli.command()
+    @click.argument("instruction", nargs=-1)
+    @click.option("--ai",   "mode", flag_value="ai",   help="强制 AI 模式（需配置 API Key）")
+    @click.option("--rule", "mode", flag_value="rule",  help="强制规则模式（离线）")
+    @click.option("--dry-run", is_flag=True, default=False, help="只解析意图，不执行（输出 JSON）")
+    def ask(instruction, mode, dry_run):
+        """🗣  自然语言单条 GIS 指令（解析 + 执行）。
+
+        \b
+        示例:
+          geoclaw-claude ask 对医院做1公里缓冲区
+          geoclaw-claude ask "下载武汉市医院数据"
+          geoclaw-claude ask "加载 hospitals.geojson 然后做500米缓冲区"
+          geoclaw-claude ask --dry-run "对医院做核密度分析"
+          geoclaw-claude ask --rule "裁剪医院到边界范围内"
+        """
+        if not instruction:
+            _err("请提供自然语言指令，例如: geoclaw-claude ask 对医院做1公里缓冲区")
+            sys.exit(1)
+
+        text   = " ".join(instruction)
+        use_ai = True if mode == "ai" else (False if mode == "rule" else None)
+
+        from geoclaw_claude.nl import NLProcessor, GeoAgent
+
+        if dry_run:
+            import json as _json
+            proc   = NLProcessor(use_ai=False)   # dry-run 不消耗 API
+            intent = proc.parse(text)
+            click.echo(_json.dumps(intent.to_dict(), ensure_ascii=False, indent=2))
+            return
+
+        agent = GeoAgent(use_ai=use_ai, verbose=False)
+        reply = agent.chat(text)
+        print(f"\n  {reply}\n")
+        agent.end()
+
+    # ── chat (交互式多轮对话) ──────────────────────────────────────────────────
+    @cli.command()
+    @click.option("--ai",   "mode", flag_value="ai",   help="强制 AI 模式")
+    @click.option("--rule", "mode", flag_value="rule",  help="强制规则模式（离线）")
+    def chat(mode):
+        """💬 进入交互式自然语言 GIS 对话模式（多轮）。
+
+        \b
+        在提示符下直接输入自然语言，输入 exit/退出 结束会话。
+        特殊命令: history(历史) / layers(图层) / status(状态)
+
+        \b
+        示例:
+          geoclaw-claude chat
+          geoclaw-claude chat --ai
+          geoclaw-claude chat --rule
+        """
+        from geoclaw_claude.nl import GeoAgent
+
+        use_ai = True if mode == "ai" else (False if mode == "rule" else None)
+        agent  = GeoAgent(use_ai=use_ai, verbose=False)
+
+        welcome = agent._history[-1].text if agent._history else ""
+        print(f"\n{welcome}\n")
+        print("  特殊命令: history(历史) / layers(图层) / status(状态) / exit(退出)\n")
+
+        while True:
+            try:
+                user_input = input("  你> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n  [已退出]")
+                break
+
+            if not user_input:
+                continue
+            if user_input.lower() in {"exit", "quit", "退出", "q"}:
+                agent.end(title="交互式NL对话会话")
+                _ok("会话已结束，操作记录已保存到记忆")
+                break
+            if user_input.lower() in {"history", "历史"}:
+                agent.print_history()
+                continue
+            if user_input.lower() in {"status", "状态"}:
+                import json as _json
+                print(_json.dumps(agent.status(), ensure_ascii=False, indent=2))
+                continue
+            if user_input.lower() in {"layers", "图层"}:
+                layers = agent._exec.list_layers()
+                print(f"  当前图层: {layers or '(空)'}")
+                continue
+
+            reply = agent.chat(user_input)
+            print(f"\n  🤖 {reply}\n")
+
     cli()
 
 
