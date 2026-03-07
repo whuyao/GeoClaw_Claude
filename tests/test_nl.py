@@ -258,9 +258,9 @@ test("N19 GeoAgent chat 帮助", n19_agent_chat_help)
 
 def n20_version():
     import geoclaw_claude
-    assert geoclaw_claude.__version__ == "2.2.1", \
-        f"期望 2.2.1，实际 {geoclaw_claude.__version__}"
-test("N20 版本号 v2.2.1", n20_version)
+    assert geoclaw_claude.__version__ == "2.3.0", \
+        f"期望 2.3.0，实际 {geoclaw_claude.__version__}"
+test("N20 版本号 v2.3.0", n20_version)
 
 
 # ════════════════════════════════════════════════════════════

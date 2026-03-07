@@ -4,6 +4,169 @@
 
 ---
 
+## v2.3.0 (2025-03-07)
+
+### 新增功能
+
+#### 1. 上下文压缩机制 (`geoclaw_claude/nl/context_compress.py`)
+
+当多轮对话历史过长时自动压缩，避免超出 LLM token 限制。
+
+**三级压缩策略（按严重程度递进）:**
+- **Level 1 — 摘要旧轮次**: 保留最近 N 条消息原文，将更早的轮次用本地算法摘要为一条 `system` 消息（无需 API 调用）
+- **Level 2 — 语义去重**: 删除连续相似消息（相似度 >80%）
+- **Level 3 — 强制截断**: 仅保留最近 K 条消息 + 截断提示（最后手段）
+
+**核心配置（`config.py` 新增字段）:**
+```
+ctx_max_tokens      = 6000   # 触发压缩的 token 阈值
+ctx_target_tokens   = 4000   # 压缩目标
+ctx_keep_recent     = 6      # 保留最近 N 条不压缩
+```
+
+**使用方式:**
+```python
+from geoclaw_claude.nl.context_compress import compress_if_needed
+messages, report = compress_if_needed(messages, system_prompt)
+print(report)  # [压缩] Level 1 | 8200 → 3900 tokens | 20 → 8 条消息
+```
+`GeoAgent` 在每轮 `_build_context()` 时自动触发；`NLProcessor._parse_with_ai()` 在调用 LLM 前也会自动压缩。
+
+---
+
+#### 2. 多 LLM Provider 支持 (`geoclaw_claude/nl/llm_provider.py`)
+
+统一封装 Anthropic Claude / OpenAI / Qwen（通义千问）API，上层代码无需感知具体 Provider。
+
+**支持的 Provider:**
+| Provider | 默认模型 | 接口方式 |
+|----------|----------|----------|
+| `anthropic` | `claude-sonnet-4-20250514` | anthropic SDK |
+| `openai` | `gpt-4o-mini` | openai SDK（支持自定义 base_url）|
+| `qwen` | `qwen-plus` | OpenAI 兼容（DashScope base_url）|
+
+**自动选择优先级:** anthropic → openai → qwen → 降级规则模式
+
+**config.py 新增字段:**
+```
+openai_api_key   / openai_model   / openai_base_url
+qwen_api_key     / qwen_model
+llm_provider     # 强制指定 provider（空=自动）
+```
+
+**使用方式:**
+```bash
+geoclaw-claude config set qwen_api_key sk-xxx
+geoclaw-claude config set qwen_model qwen-max
+geoclaw-claude config set llm_provider qwen
+geoclaw-claude ask "对医院做1公里缓冲区"
+```
+
+```python
+# 指定 Provider
+proc = NLProcessor(api_key="sk-xxx", provider="qwen")
+# 或通过 Config 自动选择
+proc = NLProcessor()  # 读取配置，按优先级自动选
+```
+
+---
+
+#### 3. 安全机制 (`geoclaw_claude/security.py`)
+
+保护输入文件不被意外覆盖/删除，所有输出写入固定目录。
+
+**保护规则:**
+1. **输出目录固定** — 所有写操作必须在 `output_dir` 下（严格模式）
+2. **输入文件保护** — `data_dir` 及上传目录下的文件禁止被覆盖或删除
+3. **系统目录保护** — 禁止写入 `/etc`、`/usr`、`/bin` 等系统路径
+4. **路径穿越防护** — 拒绝包含 `..` 的路径（路径遍历攻击防护）
+5. **软链接保护** — 禁止通过软链接绕过路径检查
+
+**自动集成:** `NLExecutor._do_save()` 和 `_do_render()` 已集成安全检查，输出路径自动重定向到 `output_dir`。
+
+**config.py 新增字段:**
+```
+security_enabled        = True   # 是否启用安全保护
+security_strict_output  = True   # 严格模式：所有输出必须在 output_dir 下
+security_verbose        = False  # 安全审计日志
+```
+
+**使用方式:**
+```python
+from geoclaw_claude.security import get_guard, safe_output_path, SecurityError
+
+guard = get_guard()
+try:
+    safe = guard.check_write("/data/input/file.geojson")   # 抛出 SecurityError
+except SecurityError as e:
+    print(e.rule)   # input_file_protection
+
+path = safe_output_path("result.geojson")  # → output_dir/result.geojson
+```
+
+---
+
+### 测试矩阵 (v2.3.0)
+
+| 测试文件 | 通过 | 覆盖内容 |
+|---------|------|---------|
+| test_memory.py | 37/37 ✅ | Memory 系统 |
+| test_updater.py | 20/20 ✅ | 版本检测 & 自更新 |
+| test_nl.py | 20/20 ✅ | 自然语言操作系统 |
+| test_mobility.py | 20/20 ✅ | 移动性分析（trackintel）|
+| **test_v230_features.py** | **33/33** ✅ | 上下文压缩 / 多 Provider / 安全机制 |
+| **合计** | **130/130** ✅ | |
+
+---
+
+## v2.3.0 (2025-03-07)
+
+### 新功能
+
+#### 1. Google Gemini API 支持
+- `nl/llm_provider.py`：新增 `PROVIDER_GEMINI` 适配，调用 `google-genai` SDK
+- 支持模型：`gemini-2.0-flash` / `gemini-2.0-flash-lite` / `gemini-1.5-flash` / `gemini-1.5-pro` / `gemini-2.5-pro-preview-03-25`
+- Provider 选择优先级：anthropic > **gemini** > openai > qwen
+- `config.py`：新增 `gemini_api_key` / `gemini_model` 字段
+- `Config.summary()`：新增 Gemini 配置显示行
+
+#### 2. 记忆存档系统（MemoryArchive）
+- 新文件：`memory/archive.py`
+- 功能：会话快照持久化（JSON）、标题/标签/摘要索引、关键词搜索
+- 按年月分目录存储：`~/.geoclaw_claude/archives/YYYY-MM/arc_<id>.json`
+- 全量导出/导入（跨机器迁移）
+- CLI 新命令：
+  - `geoclaw-claude memory archive list`
+  - `geoclaw-claude memory archive search <query>`
+  - `geoclaw-claude memory archive save -t <title>`
+  - `geoclaw-claude memory archive export / import`
+  - `geoclaw-claude memory archive stats`
+
+#### 3. 向量语义检索（VectorSearch）
+- 新文件：`memory/vector_search.py`
+- 零依赖 TF-IDF 近似向量，中英文混合分词
+- 稀疏向量余弦相似度检索，重要度加权
+- 可选增强：检测到 `sentence-transformers` 自动升级为神经网络嵌入
+- 持久化索引：`~/.geoclaw_claude/vector_index/`
+- CLI 命令：`geoclaw-claude memory vsearch <query> [--rebuild]`
+
+#### 4. Onboard 向导重构（6 步全模型配置）
+- `cli.py`：`_run_onboard()` 重写为 6 步向导（原 5 步）
+- 第 1 步：完整多模型配置（Anthropic / Gemini / OpenAI / Qwen + 优先级）
+- 第 2 步：上下文压缩参数配置（阈值/目标/保留条数/日志）
+- 可选：向导结束后立即验证 LLM API 连接
+
+#### 5. 上下文压缩集成增强
+- `agent.py`：上下文压缩已完整集成于 `_build_context()`
+- 自动按 `config.ctx_max_tokens/target_tokens/keep_recent` 触发三级压缩
+- 压缩日志可通过 `ctx_compress_verbose=True` 开启
+
+### 测试
+- 新增测试文件 `tests/test_v230_new.py`（31 项：G01-G10 / A01-A10 / V01-V10 / X01）
+- 全量测试矩阵：128/128 ✅
+
+---
+
 ## v2.2.1 (2025-03-07)
 
 ### README 全面重组 + NL 关键词修复

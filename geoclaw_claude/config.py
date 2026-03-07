@@ -46,8 +46,31 @@ class Config:
 
     # ── AI API ────────────────────────────────────────────────────────────────
     anthropic_api_key: str = ""          # Anthropic Claude API Key
-    anthropic_model:   str = "claude-sonnet-4-20250514"  # 默认使用的模型
-    openai_api_key:    str = ""          # 备用 OpenAI Key（可选）
+    anthropic_model:   str = "claude-sonnet-4-20250514"  # Claude 默认模型
+
+    openai_api_key:    str = ""          # OpenAI API Key
+    openai_model:      str = "gpt-4o-mini"  # OpenAI 默认模型
+    openai_base_url:   str = ""          # 自定义 base_url（兼容 API 代理）
+
+    gemini_api_key:    str = ""                  # Google Gemini API Key
+    gemini_model:      str = "gemini-2.0-flash"  # Gemini 默认模型
+
+    qwen_api_key:      str = ""          # 通义千问 API Key（DashScope）
+    qwen_model:        str = "qwen-plus" # Qwen 默认模型
+
+    llm_provider:      str = ""          # 强制指定 provider（空=自动选择）
+                                         # 可选: anthropic / gemini / openai / qwen
+
+    # ── 上下文压缩 ────────────────────────────────────────────────────────────
+    ctx_max_tokens:    int  = 6000   # 触发压缩的 token 阈值
+    ctx_target_tokens: int  = 4000   # 压缩目标 token 数
+    ctx_keep_recent:   int  = 6      # 保留最近 N 条消息不压缩
+    ctx_compress_verbose: bool = False  # 是否打印压缩日志
+
+    # ── 安全机制 ──────────────────────────────────────────────────────────────
+    security_enabled:       bool = True   # 是否启用安全保护
+    security_strict_output: bool = True   # 严格模式：所有输出必须在 output_dir 下
+    security_verbose:       bool = False  # 是否打印安全审计日志
 
     # ── 数据目录 ──────────────────────────────────────────────────────────────
     data_dir:    str = str(Path.home() / "geoclaw_data")   # 本地数据根目录
@@ -132,10 +155,29 @@ class Config:
         def mask(v: str) -> str:
             return v[:4] + "****" + v[-4:] if len(v) > 12 else ("****" if v else "(未设置)")
 
+        def provider_label() -> str:
+            if self.llm_provider:
+                return self.llm_provider
+            if self.anthropic_api_key:
+                return "anthropic (auto)"
+            if self.gemini_api_key:
+                return "gemini (auto)"
+            if self.openai_api_key:
+                return "openai (auto)"
+            if self.qwen_api_key:
+                return "qwen (auto)"
+            return "(未配置)"
+
         lines = [
             "╔══ GeoClaw-claude 配置 ══╗",
-            f"  Anthropic API Key : {mask(self.anthropic_api_key)}",
-            f"  默认模型          : {self.anthropic_model}",
+            f"  LLM Provider      : {provider_label()}",
+            f"  Anthropic API Key : {mask(self.anthropic_api_key)} / {self.anthropic_model}",
+            f"  Gemini API Key    : {mask(self.gemini_api_key)} / {self.gemini_model}",
+            f"  OpenAI API Key    : {mask(self.openai_api_key)} / {self.openai_model}",
+            f"  Qwen API Key      : {mask(self.qwen_api_key)} / {self.qwen_model}",
+            f"  上下文压缩        : 阈值 {self.ctx_max_tokens} tokens → 压至 {self.ctx_target_tokens}",
+            f"  安全机制          : {'启用' if self.security_enabled else '关闭'}"
+            + (" [严格模式]" if self.security_strict_output else ""),
             f"  数据目录          : {self.data_dir}",
             f"  缓存目录          : {self.cache_dir}",
             f"  输出目录          : {self.output_dir}",

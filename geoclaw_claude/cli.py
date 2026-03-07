@@ -54,17 +54,29 @@ def _run_onboard():
 
     click = _ensure_click()
 
-    print("\n" + "═" * 58)
-    print("  🌍  GeoClaw-claude  初始化向导")
-    print("═" * 58)
+    print("\n" + "═" * 60)
+    print("  🌍  GeoClaw-claude  初始化向导  v2.3.0")
+    print("═" * 60)
     print("  按 Enter 保留当前值，输入新值后按 Enter 修改。\n")
 
     cfg = Config.load()
 
-    # ── AI API Key ────────────────────────────────────────────
-    print("【1/5】AI 接口配置")
+    # ── 【1/6】LLM Provider 选择 ──────────────────────────────────────────
+    print("【1/6】AI 模型配置")
+    print()
+    print("  可用 Provider:  anthropic / gemini / openai / qwen")
+    print("  （留空 = 自动按优先级选择：anthropic > gemini > openai > qwen）")
+    provider = click.prompt(
+        "  首选 LLM Provider",
+        default=cfg.llm_provider or "",
+    ).strip().lower()
+    cfg.llm_provider = provider if provider in ("anthropic", "gemini", "openai", "qwen") else ""
+
+    print()
+    # ── Anthropic ──
+    print("  ── Anthropic Claude ──")
     key = click.prompt(
-        "  Anthropic API Key",
+        "  API Key",
         default=cfg.anthropic_api_key or "",
         hide_input=True,
         show_default=False,
@@ -74,14 +86,109 @@ def _run_onboard():
         cfg.anthropic_api_key = key
 
     model = click.prompt(
-        "  默认模型",
+        "  模型（如 claude-sonnet-4-20250514 / claude-opus-4-20250514）",
         default=cfg.anthropic_model,
     ).strip()
     if model:
         cfg.anthropic_model = model
 
-    # ── 目录配置 ──────────────────────────────────────────────
-    print("\n【2/5】数据目录配置")
+    print()
+    # ── Google Gemini ──
+    print("  ── Google Gemini ──")
+    print("  可用模型: gemini-2.0-flash / gemini-2.0-flash-lite / gemini-1.5-pro / gemini-2.5-pro-preview-03-25")
+    gkey = click.prompt(
+        "  Gemini API Key（AIza...，留空跳过）",
+        default=cfg.gemini_api_key or "",
+        hide_input=True,
+        show_default=False,
+        prompt_suffix="\n  > ",
+    ).strip()
+    if gkey:
+        cfg.gemini_api_key = gkey
+
+    gmodel = click.prompt(
+        "  Gemini 模型",
+        default=cfg.gemini_model,
+    ).strip()
+    if gmodel:
+        cfg.gemini_model = gmodel
+
+    print()
+    # ── OpenAI ──
+    print("  ── OpenAI（也可用于任意 OpenAI 兼容 API）──")
+    okey = click.prompt(
+        "  OpenAI API Key（留空跳过）",
+        default=cfg.openai_api_key or "",
+        hide_input=True,
+        show_default=False,
+        prompt_suffix="\n  > ",
+    ).strip()
+    if okey:
+        cfg.openai_api_key = okey
+
+    if cfg.openai_api_key:
+        omodel = click.prompt("  OpenAI 模型", default=cfg.openai_model).strip()
+        if omodel:
+            cfg.openai_model = omodel
+        obase = click.prompt(
+            "  自定义 base_url（兼容 API 代理，留空=官方）",
+            default=cfg.openai_base_url or "",
+        ).strip()
+        cfg.openai_base_url = obase
+
+    print()
+    # ── Qwen ──
+    print("  ── 通义千问 Qwen ──")
+    qkey = click.prompt(
+        "  Qwen API Key（DashScope，留空跳过）",
+        default=cfg.qwen_api_key or "",
+        hide_input=True,
+        show_default=False,
+        prompt_suffix="\n  > ",
+    ).strip()
+    if qkey:
+        cfg.qwen_api_key = qkey
+
+    if cfg.qwen_api_key:
+        qmodel = click.prompt(
+            "  Qwen 模型（qwen-max / qwen-plus / qwen-turbo）",
+            default=cfg.qwen_model,
+        ).strip()
+        if qmodel:
+            cfg.qwen_model = qmodel
+
+    # ── 【2/6】上下文压缩 ──────────────────────────────────────────────────
+    print("\n【2/6】上下文压缩配置")
+    print("  功能：对话历史超过阈值时自动压缩，避免超出 Token 限制。")
+    ctx_max = click.prompt(
+        "  触发压缩的 Token 阈值",
+        default=cfg.ctx_max_tokens,
+        type=int,
+    )
+    cfg.ctx_max_tokens = ctx_max
+
+    ctx_target = click.prompt(
+        "  压缩目标 Token 数",
+        default=cfg.ctx_target_tokens,
+        type=int,
+    )
+    cfg.ctx_target_tokens = ctx_target
+
+    ctx_keep = click.prompt(
+        "  保留最近 N 条消息不压缩",
+        default=cfg.ctx_keep_recent,
+        type=int,
+    )
+    cfg.ctx_keep_recent = ctx_keep
+
+    ctx_verbose = click.confirm(
+        "  显示压缩详情日志?",
+        default=cfg.ctx_compress_verbose,
+    )
+    cfg.ctx_compress_verbose = ctx_verbose
+
+    # ── 【3/6】数据目录 ───────────────────────────────────────────────────
+    print("\n【3/6】数据目录配置")
     for attr, label in [
         ("data_dir",   "本地数据目录"),
         ("cache_dir",  "网络缓存目录"),
@@ -92,8 +199,8 @@ def _run_onboard():
         if val:
             setattr(cfg, attr, val)
 
-    # ── 网络配置 ──────────────────────────────────────────────
-    print("\n【3/5】网络配置")
+    # ── 【4/6】网络配置 ───────────────────────────────────────────────────
+    print("\n【4/6】网络配置")
     proxy = click.prompt("  HTTP 代理 (留空=不使用)", default=cfg.proxy or "").strip()
     cfg.proxy = proxy
 
@@ -107,8 +214,8 @@ def _run_onboard():
         ttl = click.prompt("  缓存有效期 (小时)", default=cfg.cache_ttl_hours, type=int)
         cfg.cache_ttl_hours = ttl
 
-    # ── 制图配置 ──────────────────────────────────────────────
-    print("\n【4/5】制图配置")
+    # ── 【5/6】制图配置 ───────────────────────────────────────────────────
+    print("\n【5/6】制图配置")
     crs = click.prompt("  默认坐标系 (EPSG代码)", default=cfg.default_crs).strip()
     if crs:
         cfg.default_crs = crs
@@ -116,8 +223,8 @@ def _run_onboard():
     dpi = click.prompt("  默认输出 DPI", default=cfg.default_dpi, type=int)
     cfg.default_dpi = dpi
 
-    # ── 日志配置 ──────────────────────────────────────────────
-    print("\n【5/5】日志配置")
+    # ── 【6/6】日志配置 ───────────────────────────────────────────────────
+    print("\n【6/6】日志配置")
     level = click.prompt(
         "  日志级别",
         default=cfg.log_level,
@@ -125,7 +232,7 @@ def _run_onboard():
     ).upper()
     cfg.log_level = level
 
-    # ── 保存 ──────────────────────────────────────────────────
+    # ── 保存 ──────────────────────────────────────────────────────────────
     print()
     if click.confirm("  保存以上配置?", default=True):
         cfg.save()
@@ -133,10 +240,43 @@ def _run_onboard():
         _ok(f"配置已保存到: {CONFIG_FILE}")
         print()
         print(cfg.summary())
+
+        # 验证 LLM 配置
+        print()
+        if click.confirm("  立即验证 LLM 连接?", default=False):
+            _verify_llm(cfg)
     else:
         _warn("已取消，配置未保存。")
 
     print("\n  运行 `geoclaw-claude test` 验证环境是否正常。\n")
+
+
+def _verify_llm(cfg) -> None:
+    """验证 LLM API 连接。"""
+    print()
+    try:
+        from geoclaw_claude.nl.llm_provider import LLMProvider
+        llm = LLMProvider.from_config(
+            provider=cfg.llm_provider or None,
+            verbose=True,
+        )
+        if llm is None:
+            _warn("  未找到有效的 API Key，NL 系统将使用规则模式（离线）。")
+            return
+        print(f"  正在测试 {llm.provider_name}/{llm.model_name}...")
+        resp = llm.chat(
+            messages=[{"role": "user", "content": "reply with: ok"}],
+            system="Reply with exactly: ok",
+            max_tokens=10,
+        )
+        if resp and resp.content.strip().lower() in ("ok", "ok."):
+            _ok(f"  LLM 连接成功！Provider: {llm.provider_name} / {llm.model_name}")
+        elif resp:
+            _ok(f"  LLM 已响应（{llm.provider_name}/{llm.model_name}）: {resp.content[:50]}")
+        else:
+            _warn("  LLM 未返回有效响应，请检查 API Key 和模型名称。")
+    except Exception as e:
+        _warn(f"  LLM 连接测试失败: {e}")
 
 
 # ── CLI 命令定义 ──────────────────────────────────────────────────────────────
@@ -441,6 +581,170 @@ def main():
         json_str = mem.ltm.export_json()
         Path(output).write_text(json_str, encoding="utf-8")
         _ok(f"已导出 {len(mem.ltm)} 条记忆 → {output}")
+
+    # ── memory archive 子命令组 ───────────────────────────────────────────────
+    @memory.group("archive")
+    def memory_archive():
+        """📦 会话存档管理（保存/列出/搜索/导出历史会话快照）。"""
+        pass
+
+    @memory_archive.command("list")
+    @click.option("--limit", "-n", default=15, help="显示条数")
+    @click.option("--tag", default=None, help="按标签过滤")
+    def archive_list(limit, tag):
+        """列出所有存档。\n\n示例: geoclaw-claude memory archive list -n 20"""
+        from geoclaw_claude.memory import get_archive
+        arc = get_archive()
+        entries = arc.list_archives(limit=limit, tag=tag)
+        if not entries:
+            _warn("暂无存档记录。")
+            return
+        print(f"\n  共 {len(arc)} 条存档（显示最近 {len(entries)} 条）\n")
+        for e in entries:
+            tags_str = f"  [{', '.join(e.tags)}]" if e.tags else ""
+            print(f"  {e.date_str}  {e.archive_id[:8]}  {e.title}{tags_str}")
+            if e.summary:
+                print(f"            ↳ {e.summary[:80]}")
+        print()
+
+    @memory_archive.command("search")
+    @click.argument("query")
+    @click.option("--top", "-n", default=8, help="最多返回条数")
+    def archive_search(query, top):
+        """搜索存档。\n\n示例: geoclaw-claude memory archive search \"武汉医院\""""
+        from geoclaw_claude.memory import get_archive
+        arc = get_archive()
+        results = arc.search(query, limit=top)
+        if not results:
+            _warn(f"未找到与 '{query}' 相关的存档。")
+            return
+        print(f"\n  搜索 '{query}' 找到 {len(results)} 条：\n")
+        for e in results:
+            print(f"  {e.date_str}  {e.archive_id[:8]}  {e.title}")
+            if e.summary:
+                print(f"            ↳ {e.summary[:80]}")
+        print()
+
+    @memory_archive.command("save")
+    @click.option("--title", "-t", required=True, help="存档标题")
+    @click.option("--summary", "-s", default="", help="摘要说明")
+    @click.option("--tags", default="", help="逗号分隔标签")
+    def archive_save(title, summary, tags):
+        """手动保存当前会话为存档。\n\n示例: geoclaw-claude memory archive save -t \"武汉分析\" -s \"完成医院覆盖率分析\""""
+        from geoclaw_claude.memory import get_archive, get_memory
+        arc = get_archive()
+        mem = get_memory()
+        # 从短期记忆获取操作日志
+        ops = [{"action": r.op, "detail": r.detail}
+               for r in mem.stm.get_log()] if hasattr(mem, "stm") else []
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        entry = arc.save_session(
+            title=title,
+            ops_log=ops,
+            summary=summary,
+            tags=tag_list,
+        )
+        _ok(f"已存档：{entry.title} (ID: {entry.archive_id[:8]}) → {entry.date_str}")
+
+    @memory_archive.command("export")
+    @click.option("--output", "-o", default="archive_export.json")
+    def archive_export(output):
+        """导出所有存档到 JSON 文件。"""
+        from geoclaw_claude.memory import get_archive
+        arc = get_archive()
+        arc.export(output)
+        st = arc.stats()
+        _ok(f"已导出 {st['total']} 条存档（{st['size_human']}）→ {output}")
+
+    @memory_archive.command("import")
+    @click.argument("filepath")
+    @click.option("--overwrite", is_flag=True, default=False, help="ID 冲突时覆盖")
+    def archive_import(filepath, overwrite):
+        """从 JSON 文件导入存档。"""
+        from geoclaw_claude.memory import get_archive
+        arc = get_archive()
+        n = arc.import_json(filepath, overwrite=overwrite)
+        _ok(f"已导入 {n} 条存档。")
+
+    @memory_archive.command("stats")
+    def archive_stats():
+        """显示存档统计信息。"""
+        from geoclaw_claude.memory import get_archive
+        arc = get_archive()
+        st = arc.stats()
+        print(f"\n  📦 存档统计")
+        print(f"     总条数: {st['total']}")
+        print(f"     总大小: {st['size_human']}")
+        print(f"     来源分布: {st['sources']}\n")
+
+    # ── memory vsearch 子命令 ─────────────────────────────────────────────────
+    @memory.command("vsearch")
+    @click.argument("query")
+    @click.option("--top", "-n", default=8, help="最多返回条数")
+    @click.option("--source", default=None, help="按来源过滤（memory/archive）")
+    @click.option("--rebuild", is_flag=True, default=False, help="重建向量索引后再搜索")
+    def memory_vsearch(query, top, source, rebuild):
+        """🔍 向量语义搜索记忆（比关键词搜索更智能）。
+
+        \b
+        示例:
+          geoclaw-claude memory vsearch "武汉医院空间分析"
+          geoclaw-claude memory vsearch "人类移动性" --top 5
+          geoclaw-claude memory vsearch "buffer" --source memory
+          geoclaw-claude memory vsearch "all" --rebuild
+        """
+        from geoclaw_claude.memory import get_vector_search, get_memory
+
+        vs = get_vector_search()
+
+        if rebuild or len(vs) == 0:
+            # 从长期记忆重建索引
+            mem = get_memory()
+            all_entries = mem.ltm.get_recent(n=500)
+            added = 0
+            for entry in all_entries:
+                text = str(entry.content)[:400]
+                vs.add(
+                    doc_id=entry.id,
+                    text=text,
+                    title=entry.title,
+                    tags=entry.tags,
+                    source="memory",
+                    importance=entry.importance,
+                )
+                added += 1
+            # 从存档索引加入
+            from geoclaw_claude.memory import get_archive
+            arc = get_archive()
+            for e in arc.list_archives(limit=200):
+                vs.add(
+                    doc_id=f"arc_{e.archive_id}",
+                    text=e.summary,
+                    title=e.title,
+                    tags=e.tags,
+                    source="archive",
+                    importance=0.5,
+                )
+                added += 1
+            vs.save()
+            _ok(f"向量索引已重建（{added} 条文档，后端: {vs.backend}）")
+
+        results = vs.search(query, top_k=top, source_filter=source)
+        if not results:
+            _warn(f"未找到与 '{query}' 相关的记忆。")
+            print("  提示：运行 --rebuild 可重建向量索引。")
+            return
+
+        print(f"\n  🔍 向量搜索 '{query}' 找到 {len(results)} 条（后端: {vs.backend}）：\n")
+        for i, r in enumerate(results, 1):
+            src = r.meta.get("source", "")
+            title = r.meta.get("title", r.doc_id)
+            tags = r.meta.get("tags", [])
+            tag_str = f"  [{', '.join(tags[:3])}]" if tags else ""
+            print(f"  {i}. [{r.score:.3f}] ({src}) {title}{tag_str}")
+            if r.snippet:
+                print(f"       {r.snippet[:100]}")
+        print()
 
     # ── check ──────────────────────────────────────────────────────────────────
     @cli.command()
