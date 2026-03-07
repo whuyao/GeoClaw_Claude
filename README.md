@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 [![Lab](https://img.shields.io/badge/lab-UrbanComp-purple)](https://urbancomp.net)
 
-参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。支持空间分析、路网分析、栅格处理、AI 驱动的 Skill 脚本系统、跨会话 Memory 记忆系统，以及内置自动更新机制。
+参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。支持空间分析、路网分析、栅格处理、AI 驱动的 Skill 脚本系统、跨会话 Memory 记忆系统、内置自动更新，以及**自然语言直接操作 GIS**（v1.3.0 新增）。
 
 ---
 
@@ -22,11 +22,11 @@ bash install.sh
 # 初始化（配置 API Key、数据目录等）
 geoclaw-claude onboard
 
-# 检查是否有新版本
-geoclaw-claude check
+# 直接用自然语言操作 GIS
+geoclaw-claude ask "下载武汉市医院数据并做1公里缓冲区"
 
-# 一键更新到最新版
-geoclaw-claude update
+# 进入多轮对话模式
+geoclaw-claude chat
 ```
 
 ---
@@ -43,8 +43,8 @@ geoclaw-claude update
 | `cartography/` | 静态制图（4 主题）、Folium 交互地图 |
 | `utils/coord_transform` | WGS84 ↔ GCJ-02 ↔ BD-09 坐标互转 |
 | `memory/` | 短期记忆（会话缓存）+ 长期记忆（持久化知识库） |
+| `nl/` | **自然语言操作**（NLProcessor / NLExecutor / GeoAgent） |
 | `skills/` | 用户自定义分析 Skill 脚本系统 + AI 接口 |
-| `nl/` | 自然语言操作（NLProcessor / NLExecutor / GeoAgent） |
 | `updater` | 版本自检、自动拉取更新、全面健康检测 |
 
 ---
@@ -90,16 +90,17 @@ geoclaw-claude memory compact                    # 压缩旧记忆
 geoclaw-claude memory export -o backup.json      # 导出为 JSON
 ```
 
-### 🗣 自然语言操作
+### 🗣 自然语言操作（v1.3.0）
 
 ```bash
-geoclaw-claude ask "对医院做1公里缓冲区"      # 单条自然语言 GIS 指令
-geoclaw-claude ask "下载武汉市公园数据"        # 下载 + 命名图层
-geoclaw-claude ask "加载data/h.geojson 然后做500米缓冲区"  # 多步流水线
-geoclaw-claude ask --dry-run "核密度分析"      # 只解析意图，输出 JSON
-geoclaw-claude ask --rule "裁剪到边界范围"     # 强制规则模式（离线）
-geoclaw-claude chat                            # 交互式多轮对话
-geoclaw-claude chat --ai                       # 强制 AI 模式
+geoclaw-claude ask "对医院做1公里缓冲区"               # 单条自然语言 GIS 指令
+geoclaw-claude ask "下载武汉市公园数据"                 # 下载并自动命名图层
+geoclaw-claude ask "加载 hospitals.geojson 然后做500米缓冲区"  # 多步流水线
+geoclaw-claude ask --dry-run "对医院做核密度分析"        # 只解析意图，输出 JSON
+geoclaw-claude ask --rule "裁剪医院到边界范围内"         # 强制规则模式（离线）
+geoclaw-claude ask --ai  "叠加医院和地铁站分析覆盖情况"  # 强制 AI 模式
+geoclaw-claude chat                                    # 交互式多轮对话
+geoclaw-claude chat --ai                               # 强制 AI 模式
 ```
 
 ### 🔄 自我检测与自动更新
@@ -113,6 +114,88 @@ geoclaw-claude update --test                     # 更新后运行测试验证
 geoclaw-claude self-check                        # 全面健康检测报告
 geoclaw-claude self-check --quick                # 快速本地检测
 geoclaw-claude self-check --json                 # JSON 格式输出
+```
+
+---
+
+## 自然语言操作系统
+
+GeoClaw-claude v1.3.0 新增 `nl/` 模块，支持用自然语言直接驱动 GIS 分析。
+
+### 工作原理
+
+```
+用户输入（自然语言）
+        ↓
+  NLProcessor.parse()          ← 意图解析层
+  · AI 模式：调用 Claude API 理解语义    （有 API Key 时自动启用）
+  · 规则模式：关键词 + 正则本地解析       （无 Key 时自动降级，离线可用）
+        ↓
+  ParsedIntent                 ← 结构化意图
+  { action, params, targets, confidence, steps }
+        ↓
+  NLExecutor.execute_intent()  ← GIS 执行层
+  · 映射到 geoclaw_claude 分析函数
+  · 图层上下文管理（命名图层字典）
+  · 操作自动写入 Memory 系统
+        ↓
+  ExecutionResult              ← 执行结果
+  { success, result, message, duration }
+```
+
+### 支持的自然语言操作
+
+| 操作类型 | 示例描述 |
+|---------|---------|
+| 加载数据 | "加载 hospitals.geojson" |
+| 缓冲区分析 | "对医院做1公里缓冲区" / "500米范围" |
+| 裁剪 | "用边界裁剪医院数据" |
+| 最近邻 | "计算医院到地铁站的最近邻距离" |
+| 核密度 | "对医院做核密度分析" / "密度热力图" |
+| 分区统计 | "按行政区统计医院数量" |
+| 等时圈 | "以医院为中心做10分钟步行等时圈" |
+| 最短路径 | "计算两点之间的最短驾车路径" |
+| 坐标转换 | "把医院数据从 wgs84 转成 gcj02" |
+| 下载 OSM | "下载武汉市公园数据" |
+| 制图 | "可视化当前结果" / "用交互地图显示" |
+| 多步流水线 | "对医院做1公里缓冲区然后可视化" |
+
+### Python API
+
+```python
+from geoclaw_claude.nl import GeoAgent
+
+# 创建代理（自动选择 AI/规则模式）
+agent = GeoAgent()
+
+# 多轮对话，图层上下文自动保持
+agent.chat("加载 data/wuhan/hospitals.geojson")
+# ✓ 已加载 200 个要素
+# 当前图层: hospitals  耗时: 0.12s
+
+agent.chat("对医院做1公里缓冲区")
+# ✓ 缓冲区完成，200 个要素，半径 1000.0meters
+# 当前图层: hospitals, hospitals_buf1000  耗时: 0.43s
+
+agent.chat("然后用交互地图显示")
+# ✓ 地图生成完成
+
+# 查看对话历史
+agent.print_history()
+
+# 结束会话，自动写入长期记忆
+agent.end(title="武汉医院缓冲区分析")
+```
+
+低置信度时代理会主动确认：
+
+```python
+agent.chat("差不多做个热力图那种东西")
+# 我理解你想要：KDE 核密度分析（置信度 52%）
+# 是否执行？(是/否)
+
+agent.chat("是")
+# ✓ 核密度分析完成，100×100 网格
 ```
 
 ---
@@ -187,9 +270,9 @@ entry_id = mem.end_session(
 from geoclaw_claude.updater import check
 
 result = check()
-# [Check] 本地版本: v1.2.0
-# [Check] 远程版本: v1.2.0
-# [Check] 已是最新版本 v1.2.0 ✓
+# [Check] 本地版本: v1.3.0
+# [Check] 远程版本: v1.3.0
+# [Check] 已是最新版本 v1.3.0 ✓
 ```
 
 ### 自动更新
@@ -211,12 +294,12 @@ print_self_check(self_check())
 
 ```
 ╔══ GeoClaw-claude 自我检测报告 ══════════════════════╗
-║ 版本       本地: v1.2.0
-║ 更新状态   ✓ 已是最新版本 v1.2.0
-║            最新提交: [527182b] feat: 自我检测与自动更新
+║ 版本       本地: v1.3.0
+║ 更新状态   ✓ 已是最新版本 v1.3.0
+║            最新提交: [4b635d0] feat: 自然语言操作系统
 ║ 模块完整性 17/17 模块正常
 ║ 依赖包     11/11 依赖就绪
-║ Git        527182b feat: 自我检测与自动更新 v1.2.0
+║ Git        4b635d0 feat: 自然语言操作系统 v1.3.0
 ╚══════════════════════════════════════════════════════╝
 ```
 
@@ -278,8 +361,8 @@ density = kde(hospitals, bandwidth=0.05, grid_size=100)
 ```python
 from geoclaw_claude.analysis.network import build_network, shortest_path, isochrone
 
-G   = build_network(bbox, network_type="drive")
-iso = isochrone(G, center=(114.30, 30.60), minutes=[5, 10, 15])
+G    = build_network(bbox, network_type="drive")
+iso  = isochrone(G, center=(114.30, 30.60), minutes=[5, 10, 15])
 path = shortest_path(G, origin=(114.30, 30.60), destination=(114.40, 30.70))
 ```
 
@@ -333,7 +416,7 @@ GeoClaw_Claude/
 │   ├── config.py               # 配置系统（JSON + 环境变量）
 │   ├── cli.py                  # Click CLI 入口
 │   ├── skill_manager.py        # Skill 加载与运行
-│   ├── updater.py              # 版本检测与自动更新  ← v1.2.0
+│   ├── updater.py              # 版本检测与自动更新      ← v1.2.0
 │   ├── core/
 │   │   ├── layer.py            # GeoLayer 核心类
 │   │   └── project.py          # GeoClawProject 项目管理
@@ -348,10 +431,14 @@ GeoClaw_Claude/
 │   │   ├── vector.py           # 矢量读写
 │   │   ├── osm.py              # OSM 下载
 │   │   └── remote.py           # HTTP / WFS / 天地图
-│   ├── memory/                 # ← v1.1.0
+│   ├── memory/                 # 跨会话记忆系统          ← v1.1.0
 │   │   ├── short_term.py       # 会话内短期记忆（TTL / 操作日志）
 │   │   ├── long_term.py        # 持久化长期记忆（JSON / 检索）
 │   │   └── manager.py          # 统一管理器 + 全局单例
+│   ├── nl/                     # 自然语言操作系统        ← v1.3.0
+│   │   ├── processor.py        # NLProcessor 意图解析（AI + 规则双模式）
+│   │   ├── executor.py         # NLExecutor 意图→GIS 函数执行
+│   │   └── agent.py            # GeoAgent 多轮对话代理
 │   ├── utils/
 │   │   └── coord_transform.py  # WGS84 / GCJ02 / BD09 互转
 │   └── skills/
@@ -360,7 +447,8 @@ GeoClaw_Claude/
 ├── data/wuhan/                 # 武汉示例数据（7 个 GeoJSON）
 ├── tests/
 │   ├── test_memory.py          # Memory 测试（37 项）
-│   └── test_updater.py         # Updater 测试（20 项）
+│   ├── test_updater.py         # Updater 测试（20 项）
+│   └── test_nl.py              # NL 模块测试（20 项）  ← v1.3.0
 ├── install.sh
 ├── setup.py
 └── CHANGELOG.md
@@ -381,7 +469,7 @@ GeoClaw_Claude/
 | `matplotlib` | 静态制图 |
 | `folium` | 交互式地图 |
 | `click` | CLI 框架 |
-| `anthropic` | Claude AI 接口（可选） |
+| `anthropic` | Claude AI 接口（NL AI 模式 + Skill 系统，可选） |
 
 ---
 
@@ -391,7 +479,7 @@ GeoClaw_Claude/
 
 | 版本 | 亮点 |
 |------|------|
-| **v1.3.0** | 自然语言操作（`ask` / `chat` 命令，AI+规则双模式解析） |
+| **v1.3.0** | 自然语言操作系统（`nl/` 模块，`ask` / `chat` 命令，AI+规则双模式） |
 | **v1.2.0** | `check` / `update` / `self-check` 自动更新机制 |
 | **v1.1.0** | Memory 系统（短期 + 长期记忆，`memory` CLI 命令组） |
 | **v1.0.0** | 正式版本：完整 CLI、Skill 系统、路网/栅格分析 |
