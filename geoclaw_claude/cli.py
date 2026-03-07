@@ -338,6 +338,110 @@ def main():
         else:
             _warn("测试文件不存在，跳过。")
 
+    # ── memory ─────────────────────────────────────────────────────────────────
+    @cli.group()
+    def memory():
+        """🧠 记忆系统管理（短期/长期记忆）。"""
+        pass
+
+    @memory.command("status")
+    def memory_status():
+        """查看记忆系统状态。"""
+        from geoclaw_claude.memory import get_memory
+        mem = get_memory()
+        mem.print_status()
+
+    @memory.command("list")
+    @click.option("--category", "-c", default=None,
+                  help="类别过滤 (knowledge/session/dataset/preference/error)")
+    @click.option("--top", "-n", default=10, help="显示条数")
+    def memory_list(category, top):
+        """列出长期记忆条目。"""
+        from geoclaw_claude.memory import get_memory
+        mem = get_memory()
+        entries = mem.ltm.get_recent(n=top, category=category)
+        if not entries:
+            _warn("长期记忆为空")
+            return
+        print(f"\n  最近 {len(entries)} 条长期记忆:\n")
+        for e in entries:
+            import time
+            date = time.strftime("%m-%d %H:%M", time.localtime(e.updated_at))
+            print(f"  [{e.id}] [{e.category:10s}] {date}  ⭐{e.importance:.1f}  {e.title}")
+            if e.tags:
+                print(f"           标签: {', '.join(e.tags)}")
+        print()
+
+    @memory.command("search")
+    @click.argument("query")
+    @click.option("--top", "-n", default=5, help="显示条数")
+    def memory_search(query, top):
+        """搜索长期记忆。\n\n示例: geoclaw-claude memory search "武汉 医院"
+        """
+        from geoclaw_claude.memory import get_memory
+        mem = get_memory()
+        results = mem.recall(query, top_k=top)
+        if not results:
+            _warn(f"未找到与 '{query}' 相关的记忆")
+            return
+        print(f"\n  搜索 '{query}' 共找到 {len(results)} 条:\n")
+        for e in results:
+            print(f"  [{e.id}] {e.title}  (重要性: {e.importance:.2f})")
+            if isinstance(e.content, dict):
+                for k, v in list(e.content.items())[:3]:
+                    print(f"           {k}: {v}")
+        print()
+
+    @memory.command("learn")
+    @click.argument("title")
+    @click.argument("content")
+    @click.option("--category", "-c", default="knowledge")
+    @click.option("--tags",     "-t", default="", help="逗号分隔标签")
+    @click.option("--importance", "-i", default=0.7, type=float)
+    def memory_learn(title, content, category, tags, importance):
+        """手动向长期记忆存入知识。
+
+        \b
+        示例:
+          geoclaw-claude memory learn "武汉人口密度" "主城区约1万/km²" -t wuhan,population
+        """
+        from geoclaw_claude.memory import get_memory
+        mem = get_memory()
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        eid = mem.learn(title=title, content=content,
+                        category=category, tags=tag_list, importance=importance)
+        _ok(f"已存入长期记忆: [{eid}] {title}")
+
+    @memory.command("forget")
+    @click.argument("entry_id")
+    def memory_forget(entry_id):
+        """从长期记忆删除一条记忆。"""
+        from geoclaw_claude.memory import get_memory
+        mem = get_memory()
+        if mem.forget(entry_id):
+            _ok(f"已删除: {entry_id}")
+        else:
+            _warn(f"未找到: {entry_id}")
+
+    @memory.command("compact")
+    @click.option("--keep", default=200, help="保留条数上限")
+    def memory_compact(keep):
+        """压缩长期记忆，清理低重要性旧条目。"""
+        from geoclaw_claude.memory import get_memory
+        mem = get_memory()
+        removed = mem.ltm.compact(keep_top_n=keep)
+        _ok(f"已压缩，删除 {removed} 条低重要性旧记忆")
+
+    @memory.command("export")
+    @click.option("--output", "-o", default="memory_export.json")
+    def memory_export(output):
+        """将长期记忆导出为 JSON 文件。"""
+        from geoclaw_claude.memory import get_memory
+        mem = get_memory()
+        json_str = mem.ltm.export_json()
+        Path(output).write_text(json_str, encoding="utf-8")
+        _ok(f"已导出 {len(mem.ltm)} 条记忆 → {output}")
+
     cli()
 
 

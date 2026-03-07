@@ -4,6 +4,57 @@
 
 ---
 
+## v1.1.0 (2025-03-07)
+
+### 新增：Memory 系统
+
+**短期记忆 `ShortTermMemory`**
+- 会话内操作日志（`log_operation`）：记录函数名、参数、耗时、成功/失败状态
+- 中间结果缓存（`store` / `retrieve`）：支持任意值（GeoLayer/ndarray/dict 等）
+- TTL 自动过期机制（可按条目独立设置生存时间）
+- 会话上下文管理（`set_context` / `get_context`，永不过期）
+- 按类别/标签查询，LRU 淘汰策略
+- `summarize()` 生成会话摘要（操作序列、频率统计、错误汇总）
+
+**长期记忆 `LongTermMemory`**
+- JSON 持久化存储（`~/.geoclaw_claude/memory/`），跨会话保留
+- 四大类别：`knowledge`（分析规律）/ `session`（任务复盘）/ `dataset`（数据档案）/ `preference`（用户偏好）
+- 关键词全文检索（标题 + 标签 + content 三层搜索）
+- 按标签、类别、时间、重要性多维检索
+- 访问计数（`access_count`）+ upsert 更新
+- `compact()` 压缩：自动清理低重要性旧条目
+
+**统一管理器 `MemoryManager`**
+- `start_session()` / `end_session()` 会话生命周期管理
+- `end_session()` 自动将短期摘要 flush 入长期记忆
+- 重要性自动评分（操作数多 + 无错误 → 评分高）
+- `learn()` 手动存入领域知识
+- `recall()` 关键词检索 / `recall_recent()` / `recall_important()`
+- `get_memory()` 全局单例，支持 `reset_memory()` 重置
+- `print_status()` 可视化状态面板
+
+**CLI 新增 `memory` 命令组**
+```
+geoclaw-claude memory status          # 查看系统状态
+geoclaw-claude memory list [-c cat]   # 列出长期记忆
+geoclaw-claude memory search "关键词" # 搜索记忆
+geoclaw-claude memory learn <title> <content>  # 手动存知识
+geoclaw-claude memory forget <id>     # 删除记忆
+geoclaw-claude memory compact         # 压缩旧记忆
+geoclaw-claude memory export          # 导出 JSON
+```
+
+### 修复
+- `nearest_neighbor()`：修复地理坐标系下 `nn_distance=0` 的 BUG（改用 Web Mercator→UTM 投影）
+- `nearest_neighbor()`：兼容 GeoDataFrame / GeoLayer 双输入，消除 centroid UserWarning
+- `spatial_ops`：新增 `kde()` 核密度估计函数
+
+### 测试
+- Memory 系统测试 37/37 全部通过（T01-T37）
+- 覆盖：STM CRUD、TTL、操作日志、摘要生成、LTM 持久化、检索、flush、Manager 生命周期、全局单例、GIS 集成
+
+---
+
 ## v1.0.0 (2025-03)
 
 **首个正式发布版本。**
