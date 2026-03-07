@@ -292,7 +292,7 @@ def t20_ltm_access_count():
     for _ in range(3):
         ltm.get(eid)
     entry = ltm.get(eid)
-    assert entry.access_count == 3
+    assert entry.access_count == 4
 test("T20 LTM access_count 访问计数", t20_ltm_access_count)
 
 
@@ -628,10 +628,10 @@ test("T36 完整工作流集成测试", t36_full_workflow)
 
 def t37_version():
     import geoclaw_claude
-    assert geoclaw_claude.__version__ == "1.1.0", \
-        f"期望 1.1.0，实际 {geoclaw_claude.__version__}"
+    assert geoclaw_claude.__version__ == "2.2.1", \
+        f"期望 2.2.1，实际 {geoclaw_claude.__version__}"
     assert geoclaw_claude.__author__ == "UrbanComp Lab"
-test("T37 版本号 v1.1.0", t37_version)
+test("T37 版本号 v2.2.1", t37_version)
 
 
 # ════════════════════════════════════════════════════════════
@@ -643,7 +643,7 @@ fail = [r for r in results if r[0] == "FAIL"]
 
 print(f"\n{'═'*50}")
 print(f"  Memory 系统测试结果: {len(ok)}/{len(results)} 通过")
-print(f"  UrbanComp Lab — GeoClaw-claude v1.1.0")
+print(f"  UrbanComp Lab — GeoClaw-claude v2.2.1")
 print(f"{'═'*50}")
 
 if fail:
