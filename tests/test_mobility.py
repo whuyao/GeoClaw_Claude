@@ -339,9 +339,9 @@ test("M19 mobility_summary 字段完整", m19_mobility_summary_keys)
 
 def m20_version():
     import geoclaw_claude
-    assert geoclaw_claude.__version__ == "2.2.0", \
-        f"期望 2.2.0，实际 {geoclaw_claude.__version__}"
-test("M20 版本号 v2.2.0", m20_version)
+    assert geoclaw_claude.__version__ == "2.2.1", \
+        f"期望 2.2.1，实际 {geoclaw_claude.__version__}"
+test("M20 版本号 v2.2.1", m20_version)
 
 
 # ════════════════════════════════════════════════════════════════════════════

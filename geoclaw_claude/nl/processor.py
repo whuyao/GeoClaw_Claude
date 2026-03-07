@@ -511,9 +511,9 @@ class NLProcessor:
                 explanation="一键生成完整移动性数据层级",
             )
 
-        MOBILITY_TR = ["出行段", "tripleg", "出行模式", "交通方式", "transport", "出行方式", "transport mode"]
+        MOBILITY_TR = ["出行段", "tripleg", "出行模式", "transport mode"]
         if any(w in t for w in MOBILITY_TR):
-            if any(w in t for w in ["预测", "识别", "分类", "predict"]):
+            if any(w in t for w in ["预测", "识别", "分类", "predict", "出行方式", "交通方式"]):
                 return ParsedIntent(
                     action="mobility_transport",
                     params={"method": "simple-coarse"},
@@ -563,6 +563,17 @@ class NLProcessor:
                 explanation="移动性数据分层地图",
             )
 
+        # 预测出行方式（比 triplegs 更早检测）
+        TRANSPORT_PREDICT = ["预测出行方式", "出行方式预测", "交通方式预测", "predict transport", "mode prediction"]
+        if any(w in t for w in TRANSPORT_PREDICT):
+            return ParsedIntent(
+                action="mobility_transport",
+                params={"method": "simple-coarse"},
+                targets=[],
+                confidence=0.90,
+                explanation="预测出行方式（步行/骑行/驾车/火车）",
+            )
+
         MOBILITY_HEAT = ["活动热力图", "时间热力图", "heatmap", "活动时间", "热力图"]
         if any(w in t for w in MOBILITY_HEAT):
             return ParsedIntent(
@@ -573,7 +584,7 @@ class NLProcessor:
                 explanation="活动时间热力图（星期 × 小时）",
             )
 
-        MOBILITY_MODAL = ["出行方式图", "modal", "交通构成", "出行构成"]
+        MOBILITY_MODAL = ["出行方式图", "modal", "交通构成", "出行构成", "出行方式构成图", "出行构成图"]
         if any(w in t for w in MOBILITY_MODAL):
             return ParsedIntent(
                 action="mobility_modal",
