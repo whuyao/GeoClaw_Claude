@@ -141,6 +141,11 @@ class GeoClawProject:
             self._append_log(f"移除图层: '{name}'")
         return self
 
+    @property
+    def layers(self) -> dict:
+        """返回图层注册表字典 {name: GeoLayer}（只读视图）。"""
+        return self._layers
+
     def list_layers(self) -> list:
         """返回所有图层名称列表。"""
         return list(self._layers.keys())

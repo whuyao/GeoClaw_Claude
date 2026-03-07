@@ -4,14 +4,15 @@ geoclaw_claude/analysis/spatial_ops.py
 空间分析算法集合
 
 提供常用的矢量空间操作，参考 QGIS Processing 工具箱设计:
-  - buffer()        缓冲区分析
-  - intersect()     相交分析
-  - union()         合并分析
-  - clip()          裁剪
-  - nearest_neighbor() 最近邻连接
-  - spatial_join()  空间连接
-  - calculate_area() 面积计算
-  - zonal_stats()   分区统计
+  - buffer()           缓冲区分析
+  - intersect()        相交分析
+  - union()            合并分析
+  - clip()             裁剪
+  - nearest_neighbor() 最近邻连接（含 UTM 投影正确计算距离）
+  - spatial_join()     空间连接
+  - calculate_area()   面积计算
+  - zonal_stats()      分区统计
+  - kde()              核密度估计（返回 numpy 网格 + extent）
 
 所有函数均接受 GeoLayer，返回新的 GeoLayer（不修改输入数据）。
 度量单位（米/千米/平方千米）的计算会自动投影到最佳 UTM 分带后完成。
@@ -24,7 +25,6 @@ TODO:
   - [ ] 添加 voronoi(points) Voronoi 多边形生成
   - [ ] 添加 densify(layer, interval) 折线/面增密
   - [ ] 添加 simplify(layer, tolerance) 几何简化 (Douglas-Peucker)
-  - [ ] nearest_neighbor: 修复在地理 CRS 下距离结果为 0 的问题 (需先 UTM 投影)
   - [ ] buffer: 支持 side_buffer (单侧缓冲区) 用于道路缓冲
 ────────────────────────────────────────────────────────
 """
@@ -196,50 +196,88 @@ def clip(layer: GeoLayer, mask: GeoLayer) -> GeoLayer:
 
 
 def nearest_neighbor(
-    source: GeoLayer,
-    target: GeoLayer,
+    source,
+    target,
     k: int = 1,
 ) -> GeoLayer:
     """
     最近邻分析: 为 source 中每个要素找到 target 中距离最近的 k 个要素。
 
     结果图层新增字段:
-        nn_distance (float): 到最近要素的距离（UTM 投影后的米）
-        nn_index    (int)  : target 中最近要素的索引
+        nn_distance (float): 到最近要素的距离（米，UTM 投影后计算）
+        nn_index    (int)  : target 中最近要素的原始索引
 
     Args:
-        source: 查询图层
-        target: 被搜索图层
+        source: 查询图层（GeoLayer 或 GeoDataFrame）
+        target: 被搜索图层（GeoLayer 或 GeoDataFrame）
         k     : 返回最近邻数量（当前仅支持 k=1）
 
     TODO:
-        - [ ] 修复在地理 CRS 下 nn_distance=0 的 BUG（需先投影到 UTM）
         - [ ] 支持 k>1，返回 nn_distance_1, nn_distance_2 ... 多列
         - [ ] 添加 max_distance 参数：超出阈值则标记为 NaN
         - [ ] 返回 nn_name 字段（target 的指定属性值）
     """
-    utm = _estimate_utm(source)
-    src_utm = source.data.to_crs(utm)
-    tgt_utm = target.data.to_crs(utm)
+    # 兼容 GeoLayer 和 GeoDataFrame 两种输入
+    if isinstance(source, GeoLayer):
+        src_gdf  = source.data
+        src_name = source.name
+        src_src  = source.source
+    else:
+        src_gdf  = source
+        src_name = "source"
+        src_src  = ""
 
-    # BUG FIX: 只传入纯 geometry GeoDataFrame，避免列名冲突（rename_geometry 在某些版本无效）
-    tgt_geom_only = gpd.GeoDataFrame(geometry=tgt_utm.geometry.values, crs=utm)
+    if isinstance(target, GeoLayer):
+        tgt_gdf = target.data
+        tgt_name = target.name
+    else:
+        tgt_gdf  = target
+        tgt_name = "target"
+
+    # 统一 CRS
+    if src_gdf.crs != tgt_gdf.crs:
+        tgt_gdf = tgt_gdf.to_crs(src_gdf.crs)
+
+    # 投影到 UTM 以获取正确的米制距离（修复地理坐标下距离为0的BUG）
+    # 根据质心估算 UTM zone（先临时投影到 Web Mercator 再取质心，避免 CRS warning）
+    src_merc = src_gdf.to_crs(epsg=3857)
+    cx = float(src_merc.geometry.centroid.x.mean())
+    cy = float(src_merc.geometry.centroid.y.mean())
+    # 反算经纬度
+    import math
+    cx_deg = cx / 20037508.34 * 180
+    cy_deg = math.degrees(2 * math.atan(math.exp(cy / 6378137)) - math.pi / 2)
+    zone = int((cx_deg + 180) / 6) + 1
+    hemisphere = 32600 if cy_deg >= 0 else 32700
+    utm_epsg = hemisphere + zone
+
+    src_utm = src_gdf.to_crs(epsg=utm_epsg)
+    tgt_utm = tgt_gdf.to_crs(epsg=utm_epsg)
+
+    # 只保留 geometry，避免列名冲突
+    tgt_geom = gpd.GeoDataFrame(
+        geometry=tgt_utm.geometry.reset_index(drop=True).values,
+        crs=utm_epsg,
+    )
 
     joined = gpd.sjoin_nearest(
-        src_utm,
-        tgt_geom_only,
+        src_utm.reset_index(drop=True),
+        tgt_geom,
         how="left",
         distance_col="nn_distance",
     )
-    # 处理重复行（一个 source 匹配多个 target 时取第一个）
+    # 处理一对多重复行，保留第一个（最近的）
     joined = joined[~joined.index.duplicated(keep="first")]
 
-    result = source.data.copy()
+    result = src_gdf.copy().reset_index(drop=True)
     result["nn_distance"] = joined["nn_distance"].values
     result["nn_index"]    = joined["index_right"].values
 
-    out = GeoLayer(result, name=f"{source.name}_nn", source=source.source)
-    out._log_event("nearest_neighbor", f"target={target.name}, k={k}")
+    print(f"  最近邻: {src_name}→{tgt_name}, "
+          f"均值 {result['nn_distance'].mean():.1f}m, "
+          f"最大 {result['nn_distance'].max():.1f}m")
+
+    out = GeoLayer(result, name=f"{src_name}_nn", source=src_src)
     return out
 
 
@@ -356,3 +394,87 @@ def zonal_stats(
     out = GeoLayer(result, name=f"{zones.name}_zonal_{stat}", source=zones.source)
     out._log_event("zonal_stats", f"stat={stat}, points={points.name}")
     return out
+
+
+def kde(
+    layer: GeoLayer,
+    bandwidth: float = 0.05,
+    grid_size: int = 100,
+    extent: Optional[tuple] = None,
+    weight_col: Optional[str] = None,
+) -> dict:
+    """
+    核密度估计（Kernel Density Estimation）。
+
+    使用 scipy.stats.gaussian_kde 对点要素进行核密度计算，
+    返回二维密度网格（numpy array）及其空间范围。
+
+    Args:
+        layer      : 点要素图层（GeoLayer）
+        bandwidth  : 核带宽（地理度 / 'scott' / 'silverman'）
+        grid_size  : 输出网格分辨率（每边格数）
+        extent     : (xmin, ymin, xmax, ymax)，默认使用图层范围扩展 10%
+        weight_col : 权重字段名（None 则等权）
+
+    Returns:
+        dict:
+            'grid'    (np.ndarray): shape (grid_size, grid_size) 密度网格
+            'extent'  (tuple)    : (xmin, ymin, xmax, ymax)
+            'xx'      (np.ndarray): 网格 X 坐标矩阵
+            'yy'      (np.ndarray): 网格 Y 坐标矩阵
+    """
+    try:
+        from scipy.stats import gaussian_kde
+    except ImportError:
+        raise ImportError("kde() 需要 scipy，请执行: pip install scipy")
+
+    import numpy as np
+
+    gdf = layer.data.copy()
+    # 提取坐标（仅保留 Point 类型）
+    gdf = gdf[gdf.geometry.geom_type == "Point"]
+    if len(gdf) == 0:
+        raise ValueError("kde() 需要点图层，当前图层无点要素")
+
+    xs = gdf.geometry.x.values.astype(float)
+    ys = gdf.geometry.y.values.astype(float)
+
+    # 构建空间范围
+    if extent is None:
+        pad_x = (xs.max() - xs.min()) * 0.1 or 0.01
+        pad_y = (ys.max() - ys.min()) * 0.1 or 0.01
+        xmin, xmax = xs.min() - pad_x, xs.max() + pad_x
+        ymin, ymax = ys.min() - pad_y, ys.max() + pad_y
+    else:
+        xmin, ymin, xmax, ymax = extent
+
+    # 网格坐标
+    xi = np.linspace(xmin, xmax, grid_size)
+    yi = np.linspace(ymin, ymax, grid_size)
+    xx, yy = np.meshgrid(xi, yi)
+    positions = np.vstack([xx.ravel(), yy.ravel()])
+
+    # 权重
+    weights = None
+    if weight_col and weight_col in gdf.columns:
+        weights = gdf[weight_col].values.astype(float)
+        weights = np.where(np.isnan(weights) | (weights <= 0), 1.0, weights)
+
+    # 核密度计算
+    kernel = gaussian_kde(
+        np.vstack([xs, ys]),
+        bw_method=bandwidth,
+        weights=weights,
+    )
+    grid = kernel(positions).reshape(grid_size, grid_size)
+
+    print(f"  KDE: {len(gdf)} 点, bandwidth={bandwidth}, "
+          f"grid={grid_size}×{grid_size}, "
+          f"密度范围 [{grid.min():.4f}, {grid.max():.4f}]")
+
+    return {
+        "grid":   grid,
+        "extent": (xmin, ymin, xmax, ymax),
+        "xx":     xx,
+        "yy":     yy,
+    }
