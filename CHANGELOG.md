@@ -4,6 +4,32 @@
 
 ---
 
+## v2.3.1 — 输出路径配置 & 文档全面更新
+
+### 新增
+
+#### 输出路径动态配置（用户可在运行时指定输出目录）
+- **CLI `ask` / `chat` 命令**新增 `--output-dir <路径>` / `-O <路径>` 选项
+  - 目录不存在时自动创建
+  - 仅当次命令/会话生效，不修改配置文件
+  - 支持绝对路径和相对路径
+- **环境变量 `GEOCLAW_OUTPUT_DIR`** 支持全 Shell 会话级覆盖
+  - `ask` / `chat` 命令均绑定此环境变量
+- **`GeoAgent(output_dir=...)`** Python API 参数支持
+- **`NLExecutor(output_dir=...)`** 底层执行器参数支持
+- 优先级：`--output-dir` > `GEOCLAW_OUTPUT_DIR` > `config.output_dir`
+- `NLExecutor` 在 `output_dir` 非空时创建独立 `SecurityGuard` 实例（不影响全局单例）
+- 新增 `NLExecutor._get_safe_output_path()` 内部方法（统一路径解析入口）
+
+### 文档
+
+- 重写 `docs/GeoClaw-claude_User_Guide_v2.3.0.pdf`（含输出路径专章、FAQ）
+- 重写 `docs/GeoClaw-claude_Technical_Reference_v2.3.0.pdf`（含 SecurityGuard API、架构图）
+- 删除 v2.2.1 旧版 docx / pdf 文档
+- README 已在 v2.3.0 中完整更新
+
+---
+
 ## v2.3.0 (2025-03-07)
 
 ### 新增功能

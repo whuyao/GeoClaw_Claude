@@ -22,7 +22,6 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
-
 from geoclaw_claude.nl.processor import NLProcessor, ParsedIntent
 from geoclaw_claude.nl.executor  import NLExecutor, ExecutionResult
 
@@ -73,6 +72,7 @@ class GeoAgent:
         use_ai:     Optional[bool] = None,
         verbose:    bool = False,
         session_id: Optional[str] = None,
+        output_dir: Optional[str] = None,
     ):
         """
         Args:
@@ -80,9 +80,11 @@ class GeoAgent:
             use_ai    : True=AI模式, False=规则模式, None=自动
             verbose   : 打印调试信息
             session_id: 记忆会话 ID
+            output_dir: 覆盖默认输出目录；None 则使用 config.output_dir
         """
         self._proc = NLProcessor(api_key=api_key, use_ai=use_ai, verbose=verbose)
-        self._exec = NLExecutor(memory_session=session_id, verbose=verbose)
+        self._exec = NLExecutor(memory_session=session_id, verbose=verbose,
+                                output_dir=output_dir)
         self._history: List[ChatMessage] = []
         self._pending_intent: Optional[ParsedIntent] = None   # 等待确认的意图
         self.verbose = verbose
@@ -212,7 +214,7 @@ class GeoAgent:
         return "\n".join(lines)
 
     def _build_context(self) -> Dict[str, Any]:
-        """构建传给解析器的上下文。"""
+        """构建传给解析器的上下文（含上下文压缩）。"""
         ctx: Dict[str, Any] = {}
         layers = self._exec.list_layers()
         if layers:
@@ -220,11 +222,63 @@ class GeoAgent:
         last = self._exec.last_result
         if last is not None and hasattr(last, "name"):
             ctx["last_layer"] = last.name
-        if self._history:
-            recent = [m.text for m in self._history[-4:] if m.role == "user"]
-            if recent:
-                ctx["recent_user_inputs"] = recent
+
+        # 构建对话消息列表并压缩
+        messages = self._history_to_messages()
+        if messages:
+            try:
+                from geoclaw_claude.nl.context_compress import (
+                    compress_if_needed, CompressConfig
+                )
+                from geoclaw_claude.config import Config
+                cfg = Config.load()
+                cc = CompressConfig(
+                    max_tokens=cfg.ctx_max_tokens,
+                    target_tokens=cfg.ctx_target_tokens,
+                    keep_recent=cfg.ctx_keep_recent,
+                )
+                compressed, report = compress_if_needed(
+                    messages, verbose=cfg.ctx_compress_verbose, config=cc
+                )
+                if report.level_applied > 0:
+                    ctx["compressed_history"] = compressed
+                    ctx["compress_report"] = str(report)
+                    if self.verbose:
+                        print(f"  [Agent] 上下文已压缩: {report}")
+                else:
+                    recent = [m["content"] for m in messages[-4:]
+                              if m.get("role") == "user"]
+                    if recent:
+                        ctx["recent_user_inputs"] = recent
+            except Exception:
+                recent = [m.text for m in self._history[-4:] if m.role == "user"]
+                if recent:
+                    ctx["recent_user_inputs"] = recent
         return ctx
+
+    def _history_to_messages(self) -> List[Dict[str, str]]:
+        """将 _history 转为 LLM messages 格式（供压缩器使用）。"""
+        msgs = []
+        for m in self._history:
+            if m.role == "user":
+                msgs.append({"role": "user", "content": m.text})
+            elif m.role == "agent":
+                msgs.append({"role": "assistant", "content": m.text})
+        return msgs
+
+    def context_stats(self) -> dict:
+        """返回当前上下文 token 估算统计。"""
+        try:
+            from geoclaw_claude.nl.context_compress import estimate_messages_tokens
+            msgs = self._history_to_messages()
+            return {
+                "messages": len(msgs),
+                "estimated_tokens": estimate_messages_tokens(msgs),
+                "provider": (self._proc._llm.provider_name
+                             if self._proc._llm else "rule-based"),
+            }
+        except Exception:
+            return {"messages": len(self._history), "estimated_tokens": 0}
 
     def _add_agent_msg(
         self,

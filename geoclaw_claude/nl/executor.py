@@ -76,16 +76,40 @@ class NLExecutor:
         self,
         memory_session: Optional[str] = None,
         verbose: bool = True,
+        output_dir: Optional[str] = None,
     ):
         """
         Args:
             memory_session : 绑定的 Memory 会话 ID（None 则自动创建）
             verbose        : 打印执行过程
+            output_dir     : 覆盖配置文件中的输出目录；None 则使用 config.output_dir
         """
         self.verbose  = verbose
         self._layers: Dict[str, Any] = {}          # 图层上下文（name → GeoLayer）
         self._history: List[ExecutionResult] = []   # 执行历史
         self._last_result: Any = None               # 上一步结果
+
+        # 输出目录：参数 > 环境变量 > 配置文件
+        import os as _os
+        self._output_dir: Optional[str] = (
+            output_dir
+            or _os.environ.get("GEOCLAW_OUTPUT_DIR")
+            or None
+        )
+
+        # 如果指定了输出目录，用独立 SecurityGuard（不影响全局单例）
+        self._guard = None
+        if self._output_dir:
+            try:
+                from geoclaw_claude.security import SecurityGuard
+                from geoclaw_claude.config import Config
+                cfg = Config.load()
+                self._guard = SecurityGuard(
+                    output_dir=self._output_dir,
+                    protected_dirs=[cfg.data_dir],
+                )
+            except Exception:
+                pass
 
         # Memory 集成
         self._mem = None
@@ -96,6 +120,13 @@ class NLExecutor:
             self._mem.start_session(sid)
         except Exception:
             pass
+
+    def _get_safe_output_path(self, filename: str, subdir: str = "") -> str:
+        """获取安全输出路径（优先使用本实例 guard，否则使用全局 guard）。"""
+        if self._guard is not None:
+            return str(self._guard.safe_output_path(filename, subdir=subdir))
+        from geoclaw_claude.security import get_guard
+        return str(get_guard().safe_output_path(filename, subdir=subdir))
 
     # ── 图层管理 ──────────────────────────────────────────────────────────────
 
@@ -351,11 +382,19 @@ class NLExecutor:
 
     def _do_save(self, p: dict, t: list) -> Any:
         from geoclaw_claude.io.vector import save_vector
-        path  = p.get("path", "output.geojson")
+        raw_path = p.get("path", "output.geojson")
         lname = p.get("layer", "") or (t[0] if t else "")
         layer = self._resolve_layer(lname)
-        save_vector(layer, path)
-        return {"saved": path, "features": len(layer)}
+
+        # 安全检查：将输出路径重定向到输出目录
+        try:
+            safe_path = Path(self._get_safe_output_path(raw_path))
+        except Exception:
+            from pathlib import Path
+            safe_path = Path(raw_path)
+
+        save_vector(layer, str(safe_path))
+        return {"saved": str(safe_path), "features": len(layer)}
 
     def _do_buffer(self, p: dict, t: list) -> Any:
         from geoclaw_claude.analysis.spatial_ops import buffer
@@ -519,10 +558,22 @@ class NLExecutor:
         if not layers:
             raise ValueError("没有可制图的图层，请先加载或分析数据")
         title = p.get("title", "GeoClaw-claude 地图")
+
+        def _safe_outpath(filename: str) -> str:
+            try:
+                return self._get_safe_output_path(filename)
+            except Exception:
+                return filename
+
         if interactive:
             from geoclaw_claude.cartography.renderer import render_interactive
-            path = render_interactive(layers, title=title)
-            return {"type": "interactive", "path": str(path)}
+            raw_path = render_interactive(layers, title=title)
+            safe = _safe_outpath(str(raw_path).split("/")[-1])
+            import shutil, pathlib
+            if str(raw_path) != safe:
+                pathlib.Path(safe).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(raw_path), safe)
+            return {"type": "interactive", "path": safe}
         else:
             from geoclaw_claude.cartography.renderer import render_map
             fig = render_map(layers, title=title)

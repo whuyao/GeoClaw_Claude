@@ -882,7 +882,9 @@ def main():
     @click.option("--ai",   "mode", flag_value="ai",   help="强制 AI 模式（需配置 API Key）")
     @click.option("--rule", "mode", flag_value="rule",  help="强制规则模式（离线）")
     @click.option("--dry-run", is_flag=True, default=False, help="只解析意图，不执行（输出 JSON）")
-    def ask(instruction, mode, dry_run):
+    @click.option("--output-dir", "-O", default="", envvar="GEOCLAW_OUTPUT_DIR",
+                  help="本次输出目录（覆盖配置文件 output_dir，环境变量 GEOCLAW_OUTPUT_DIR 亦可）")
+    def ask(instruction, mode, dry_run, output_dir):
         """🗣  自然语言单条 GIS 指令（解析 + 执行）。
 
         \b
@@ -892,6 +894,7 @@ def main():
           geoclaw-claude ask "加载 hospitals.geojson 然后做500米缓冲区"
           geoclaw-claude ask --dry-run "对医院做核密度分析"
           geoclaw-claude ask --rule "裁剪医院到边界范围内"
+          geoclaw-claude ask --output-dir ./results "对医院做缓冲区"
         """
         if not instruction:
             _err("请提供自然语言指令，例如: geoclaw-claude ask 对医院做1公里缓冲区")
@@ -899,6 +902,7 @@ def main():
 
         text   = " ".join(instruction)
         use_ai = True if mode == "ai" else (False if mode == "rule" else None)
+        out_dir = output_dir.strip() or None
 
         from geoclaw_claude.nl import NLProcessor, GeoAgent
 
@@ -909,7 +913,12 @@ def main():
             click.echo(_json.dumps(intent.to_dict(), ensure_ascii=False, indent=2))
             return
 
-        agent = GeoAgent(use_ai=use_ai, verbose=False)
+        if out_dir:
+            from pathlib import Path as _Path
+            _Path(out_dir).mkdir(parents=True, exist_ok=True)
+            _ok(f"输出目录: {out_dir}")
+
+        agent = GeoAgent(use_ai=use_ai, verbose=False, output_dir=out_dir)
         reply = agent.chat(text)
         print(f"\n  {reply}\n")
         agent.end()
@@ -918,7 +927,9 @@ def main():
     @cli.command()
     @click.option("--ai",   "mode", flag_value="ai",   help="强制 AI 模式")
     @click.option("--rule", "mode", flag_value="rule",  help="强制规则模式（离线）")
-    def chat(mode):
+    @click.option("--output-dir", "-O", default="", envvar="GEOCLAW_OUTPUT_DIR",
+                  help="本次会话输出目录（覆盖配置文件 output_dir，环境变量 GEOCLAW_OUTPUT_DIR 亦可）")
+    def chat(mode, output_dir):
         """💬 进入交互式自然语言 GIS 对话模式（多轮）。
 
         \b
@@ -930,11 +941,19 @@ def main():
           geoclaw-claude chat
           geoclaw-claude chat --ai
           geoclaw-claude chat --rule
+          geoclaw-claude chat --output-dir ./project_results
         """
         from geoclaw_claude.nl import GeoAgent
 
-        use_ai = True if mode == "ai" else (False if mode == "rule" else None)
-        agent  = GeoAgent(use_ai=use_ai, verbose=False)
+        use_ai  = True if mode == "ai" else (False if mode == "rule" else None)
+        out_dir = output_dir.strip() or None
+
+        if out_dir:
+            from pathlib import Path as _Path
+            _Path(out_dir).mkdir(parents=True, exist_ok=True)
+            _ok(f"输出目录: {out_dir}")
+
+        agent  = GeoAgent(use_ai=use_ai, verbose=False, output_dir=out_dir)
 
         welcome = agent._history[-1].text if agent._history else ""
         print(f"\n{welcome}\n")
