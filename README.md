@@ -2,12 +2,12 @@
 
 > **UrbanComp Lab** (https://urbancomp.net) 出品的轻量级 Python 地理信息分析工具集。
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 [![Lab](https://img.shields.io/badge/lab-UrbanComp-purple)](https://urbancomp.net)
 
-参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。支持空间分析、路网分析、栅格处理、AI 驱动的 Skill 脚本系统、跨会话 Memory 记忆系统、内置自动更新，以及**自然语言直接操作 GIS**（v1.3.0 新增）。
+参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。支持空间分析、路网分析、栅格处理、AI 驱动的 Skill 脚本系统、跨会话 Memory 记忆系统、内置自动更新，以及**自然语言直接操作 GIS**（v2.0.0 核心功能）。
 
 ---
 
@@ -90,7 +90,7 @@ geoclaw-claude memory compact                    # 压缩旧记忆
 geoclaw-claude memory export -o backup.json      # 导出为 JSON
 ```
 
-### 🗣 自然语言操作（v1.3.0）
+### 🗣 自然语言操作
 
 ```bash
 geoclaw-claude ask "对医院做1公里缓冲区"               # 单条自然语言 GIS 指令
@@ -120,7 +120,7 @@ geoclaw-claude self-check --json                 # JSON 格式输出
 
 ## 自然语言操作系统
 
-GeoClaw-claude v1.3.0 新增 `nl/` 模块，支持用自然语言直接驱动 GIS 分析。
+GeoClaw-claude v2.0.0 的核心特性：用自然语言直接驱动 GIS 分析，无需记忆 API 函数名。
 
 ### 工作原理
 
@@ -170,12 +170,10 @@ agent = GeoAgent()
 
 # 多轮对话，图层上下文自动保持
 agent.chat("加载 data/wuhan/hospitals.geojson")
-# ✓ 已加载 200 个要素
-# 当前图层: hospitals  耗时: 0.12s
+# ✓ 已加载 200 个要素  耗时: 0.12s
 
 agent.chat("对医院做1公里缓冲区")
-# ✓ 缓冲区完成，200 个要素，半径 1000.0meters
-# 当前图层: hospitals, hospitals_buf1000  耗时: 0.43s
+# ✓ 缓冲区完成，200 个要素，半径 1000.0meters  耗时: 0.43s
 
 agent.chat("然后用交互地图显示")
 # ✓ 地图生成完成
@@ -206,25 +204,16 @@ Memory 系统为 GeoClaw-claude 提供跨任务的知识积累能力，分为短
 
 ### 短期记忆（ShortTermMemory）
 
-存活于单次任务会话内，会话结束后自动清除或转入长期记忆：
-
 ```python
 from geoclaw_claude.memory import get_memory
 
 mem = get_memory()
 mem.start_session("wuhan_hospital_analysis")
 
-# 记录操作步骤
-mem.log_op("buffer", "hospitals, 1km")
-
-# 缓存中间结果（支持 GeoLayer、ndarray、dict 等任意类型）
-mem.remember("buf_hospitals", buf_layer)
-
-# 读取缓存
-layer = mem.recall_short("buf_hospitals")
-
-# 设置会话上下文
-mem.set_context("city", "wuhan")
+mem.log_op("buffer", "hospitals, 1km")           # 记录操作步骤
+mem.remember("buf_hospitals", buf_layer)          # 缓存中间结果
+layer = mem.recall_short("buf_hospitals")         # 读取缓存
+mem.set_context("city", "wuhan")                  # 设置上下文
 ```
 
 ### 长期记忆（LongTermMemory）
@@ -232,7 +221,6 @@ mem.set_context("city", "wuhan")
 持久化存储于 `~/.geoclaw_claude/memory/`，跨会话保留知识：
 
 ```python
-# 存入领域知识
 mem.learn(
     title="武汉医院空间分布规律",
     content={"finding": "医院主要集中在三环内，外围覆盖不足"},
@@ -240,18 +228,14 @@ mem.learn(
     importance=0.8,
 )
 
-# 关键词检索（标题 + 标签 + 内容 三层搜索）
-results = mem.recall("武汉 医院")
-
-# 获取最近记忆 / 最重要记忆
-recent    = mem.recall_recent(n=5)
-important = mem.recall_important(n=5, threshold=0.7)
+results   = mem.recall("武汉 医院")               # 关键词检索
+recent    = mem.recall_recent(n=5)                # 最近记忆
+important = mem.recall_important(n=5, threshold=0.7)  # 最重要记忆
 ```
 
 ### 会话复盘（自动 flush）
 
 ```python
-# 结束会话时自动将操作摘要转入长期记忆
 entry_id = mem.end_session(
     title="武汉医院覆盖分析复盘",
     tags=["wuhan", "hospital"],
@@ -264,42 +248,21 @@ entry_id = mem.end_session(
 
 ## 自我检测与自动更新
 
-### 版本检测
-
 ```python
-from geoclaw_claude.updater import check
+from geoclaw_claude.updater import check, update, self_check, print_self_check
 
-result = check()
-# [Check] 本地版本: v1.3.0
-# [Check] 远程版本: v1.3.0
-# [Check] 已是最新版本 v1.3.0 ✓
-```
-
-### 自动更新
-
-```python
-from geoclaw_claude.updater import update
-
-result = update(run_tests=True)
-# 步骤：版本检测 → git pull → pip install -e . → 打印 CHANGELOG → 运行测试
-```
-
-### 全面健康检查
-
-```python
-from geoclaw_claude.updater import self_check, print_self_check
-
+check()        # 检测远程最新版本
+update()       # git pull + pip install -e .
 print_self_check(self_check())
 ```
 
 ```
 ╔══ GeoClaw-claude 自我检测报告 ══════════════════════╗
-║ 版本       本地: v1.3.0
-║ 更新状态   ✓ 已是最新版本 v1.3.0
-║            最新提交: [4b635d0] feat: 自然语言操作系统
+║ 版本       本地: v2.0.0
+║ 更新状态   ✓ 已是最新版本 v2.0.0
+║            最新提交: [latest] feat: 升级至 v2.0.0
 ║ 模块完整性 17/17 模块正常
 ║ 依赖包     11/11 依赖就绪
-║ Git        4b635d0 feat: 自然语言操作系统 v1.3.0
 ╚══════════════════════════════════════════════════════╝
 ```
 
@@ -307,21 +270,14 @@ print_self_check(self_check())
 
 ## Skill 系统
 
-用户可编写符合规范的 Python 脚本，通过 CLI 或 API 运行，支持调用 Claude AI 进行智能分析：
-
 ```python
 # my_skill.py
-SKILL_META = {
-    "name":        "my_analysis",
-    "version":     "1.0.0",
-    "author":      "your_name",
-    "description": "我的分析脚本",
-}
+SKILL_META = {"name": "my_analysis", "version": "1.0.0",
+              "author": "your_name", "description": "我的分析脚本"}
 
 def run(ctx):
     layer     = ctx.get_layer("input")
     radius_km = float(ctx.param("radius_km", 5.0))
-    # ... 分析逻辑 ...
     ai_result = ctx.ask_ai("请分析这些数据的空间分布特征")
     return ctx.result(output=result_layer)
 ```
@@ -335,74 +291,32 @@ geoclaw-claude skill run my_analysis --data data.geojson --ai
 
 ## Python API
 
-### 空间分析
-
 ```python
 from geoclaw_claude import GeoLayer, GeoClawProject
 from geoclaw_claude.io.vector import load_vector
 from geoclaw_claude.analysis.spatial_ops import buffer, nearest_neighbor, kde
+from geoclaw_claude.analysis.network import build_network, isochrone, shortest_path
+from geoclaw_claude.analysis.raster_ops import load_raster, slope, reclassify, zonal_stats
+from geoclaw_claude.utils.coord_transform import wgs84_to_gcj02, transform_layer
 
+# 空间分析
 hospitals = load_vector("hospitals.geojson")
+buf       = buffer(hospitals, 1000, unit="meters")
+result    = nearest_neighbor(hospitals, load_vector("metro_stations.geojson"))
+density   = kde(hospitals, bandwidth=0.05, grid_size=100)
 
-# 缓冲区分析（自动 UTM 投影，精准米制距离）
-buf = buffer(hospitals, 1000, unit="meters")
-
-# 最近邻分析（nn_distance 字段，单位：米）
-metros = load_vector("metro_stations.geojson")
-result = nearest_neighbor(hospitals, metros)
-
-# KDE 核密度
-density = kde(hospitals, bandwidth=0.05, grid_size=100)
-# → {"grid": ndarray(100,100), "extent": (xmin,ymin,xmax,ymax), ...}
-```
-
-### 路网分析
-
-```python
-from geoclaw_claude.analysis.network import build_network, shortest_path, isochrone
-
+# 路网分析
 G    = build_network(bbox, network_type="drive")
 iso  = isochrone(G, center=(114.30, 30.60), minutes=[5, 10, 15])
 path = shortest_path(G, origin=(114.30, 30.60), destination=(114.40, 30.70))
-```
 
-### 栅格分析
-
-```python
-from geoclaw_claude.analysis.raster_ops import load_raster, slope, reclassify, zonal_stats
-
+# 栅格分析
 dem     = load_raster("dem.tif")
 slp     = slope(dem)
 reclass = reclassify(slp, [(0, 5, 1), (5, 15, 2), (15, 90, 3)])
-stats   = zonal_stats(districts, hospitals, stat="count")
-```
 
-### 坐标转换
-
-```python
-from geoclaw_claude.utils.coord_transform import wgs84_to_gcj02, transform_layer
-
-gcj_lon, gcj_lat = wgs84_to_gcj02(114.30, 30.60)
+# 坐标转换
 gcj_layer = transform_layer(hospitals, "wgs84", "gcj02")
-```
-
-### Memory 集成工作流
-
-```python
-from geoclaw_claude.memory import get_memory
-
-mem = get_memory()
-mem.start_session("my_analysis_task")
-mem.log_op("load", "hospitals.geojson")
-mem.remember("hospitals", hospitals)
-
-# ... 执行分析 ...
-
-mem.learn("武汉医院覆盖率", {"coverage": "82%"}, tags=["wuhan"])
-mem.end_session(title="分析复盘")
-
-# 下次会话中检索历史知识
-results = mem.recall("武汉 医院")
 ```
 
 ---
@@ -416,7 +330,7 @@ GeoClaw_Claude/
 │   ├── config.py               # 配置系统（JSON + 环境变量）
 │   ├── cli.py                  # Click CLI 入口
 │   ├── skill_manager.py        # Skill 加载与运行
-│   ├── updater.py              # 版本检测与自动更新      ← v1.2.0
+│   ├── updater.py              # 版本检测与自动更新        ← v1.2.0
 │   ├── core/
 │   │   ├── layer.py            # GeoLayer 核心类
 │   │   └── project.py          # GeoClawProject 项目管理
@@ -431,12 +345,12 @@ GeoClaw_Claude/
 │   │   ├── vector.py           # 矢量读写
 │   │   ├── osm.py              # OSM 下载
 │   │   └── remote.py           # HTTP / WFS / 天地图
-│   ├── memory/                 # 跨会话记忆系统          ← v1.1.0
+│   ├── memory/                 # 跨会话记忆系统            ← v1.1.0
 │   │   ├── short_term.py       # 会话内短期记忆（TTL / 操作日志）
 │   │   ├── long_term.py        # 持久化长期记忆（JSON / 检索）
 │   │   └── manager.py          # 统一管理器 + 全局单例
-│   ├── nl/                     # 自然语言操作系统        ← v1.3.0
-│   │   ├── processor.py        # NLProcessor 意图解析（AI + 规则双模式）
+│   ├── nl/                     # 自然语言操作系统          ← v1.3.0 / v2.0.0
+│   │   ├── processor.py        # NLProcessor（AI + 规则双模式）
 │   │   ├── executor.py         # NLExecutor 意图→GIS 函数执行
 │   │   └── agent.py            # GeoAgent 多轮对话代理
 │   ├── utils/
@@ -448,7 +362,7 @@ GeoClaw_Claude/
 ├── tests/
 │   ├── test_memory.py          # Memory 测试（37 项）
 │   ├── test_updater.py         # Updater 测试（20 项）
-│   └── test_nl.py              # NL 模块测试（20 项）  ← v1.3.0
+│   └── test_nl.py              # NL 模块测试（20 项）
 ├── install.sh
 ├── setup.py
 └── CHANGELOG.md
@@ -475,16 +389,32 @@ GeoClaw_Claude/
 
 ## 版本历史
 
-详见 [CHANGELOG.md](CHANGELOG.md)
+完整记录详见 [CHANGELOG.md](CHANGELOG.md)
 
-| 版本 | 亮点 |
-|------|------|
-| **v1.3.0** | 自然语言操作系统（`nl/` 模块，`ask` / `chat` 命令，AI+规则双模式） |
-| **v1.2.0** | `check` / `update` / `self-check` 自动更新机制 |
-| **v1.1.0** | Memory 系统（短期 + 长期记忆，`memory` CLI 命令组） |
-| **v1.0.0** | 正式版本：完整 CLI、Skill 系统、路网/栅格分析 |
-| v0.2.0 | CLI 骨架、Skill 原型 |
-| v0.1.0 | 初始内部版本 |
+### v2.0.0 (2025-03-07) — 重大版本升级
+
+标志着 GeoClaw-claude 正式迈入**自然语言驱动的智能 GIS 平台**时代。
+自然语言操作系统完整测试验证，所有文档与代码同步，API 完全向下兼容 v1.x。
+
+### v1.3.0 (2025-03-07) — 自然语言操作系统
+
+新增 `nl/` 模块：`NLProcessor` 双模式意图解析（AI/规则）、`NLExecutor` GIS 执行引擎、`GeoAgent` 多轮对话代理。CLI 新增 `ask`（单条指令）和 `chat`（交互式对话）两个命令。NL 测试 20/20 通过。
+
+### v1.2.0 (2025-03-07) — 自我检测与自动更新
+
+新增 `updater.py`：`check()` 检测远程最新版本、`update()` 自动拉取安装（git pull + pip install）、`self_check()` 全面健康检测报告。CLI 新增 `check` / `update` / `self-check` 三个命令。Updater 测试 20/20 通过。
+
+### v1.1.0 (2025-03-07) — Memory 记忆系统
+
+新增 `memory/` 模块：`ShortTermMemory`（TTL 缓存 + 操作日志）、`LongTermMemory`（JSON 持久化 + 关键词检索）、`MemoryManager`（全局单例 + 会话复盘 flush）。CLI 新增 `memory` 命令组（8 个子命令）。Memory 测试 37/37 通过。同时修复 `nearest_neighbor()` 距离为 0 的 BUG，新增 `kde()` 函数。
+
+### v1.0.0 (2025-03) — 首个正式版本
+
+完整 CLI（`geoclaw-claude` 命令）、Skill 脚本系统、路网分析（最短路径/等时圈/服务区）、栅格分析（DEM/坡度/重分类/分区统计）、远程数据下载（HTTP/WFS/天地图）、坐标转换（WGS84/GCJ02/BD09）。
+
+### v0.2.0 / v0.1.0
+
+CLI 骨架与 Skill 原型（v0.2.0）；核心图层类、OSM 下载、空间分析初始版本（v0.1.0）。
 
 ---
 
