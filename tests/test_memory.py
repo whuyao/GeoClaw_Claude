@@ -631,7 +631,7 @@ def t37_version():
     assert geoclaw_claude.__version__ == "2.4.1", \
         f"期望 2.4.1，实际 {geoclaw_claude.__version__}"
     assert geoclaw_claude.__author__ == "UrbanComp Lab"
-test("T37 版本号 v2.3.0", t37_version)
+test("T37 版本号 v2.4.1", t37_version)
 
 
 # ════════════════════════════════════════════════════════════
@@ -643,7 +643,7 @@ fail = [r for r in results if r[0] == "FAIL"]
 
 print(f"\n{'═'*50}")
 print(f"  Memory 系统测试结果: {len(ok)}/{len(results)} 通过")
-print(f"  UrbanComp Lab — GeoClaw-claude v2.3.0")
+print(f"  UrbanComp Lab — GeoClaw-claude v2.4.1")
 print(f"{'═'*50}")
 
 if fail:

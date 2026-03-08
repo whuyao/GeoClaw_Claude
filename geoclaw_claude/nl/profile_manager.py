@@ -376,7 +376,7 @@ def _build_soul_prompt(cfg: SoulConfig) -> str:
     if cfg.spatial_rules:
         lines.append("Spatial rules: " + "; ".join(cfg.spatial_rules[:3]))
     if cfg.safety_rules:
-        lines.append("Safety: " + "; ".join(cfg.safety_rules[:3]))
+        lines.append("Safety (Must NOT): " + "; ".join(cfg.safety_rules[:3]))
     return "\n".join(lines)
 
 
@@ -555,7 +555,7 @@ class ProfileManager:
         use_zh = (user.preferred_lang == "zh") or (user.preferred_lang == "auto")
 
         if use_zh:
-            role_hint = f"（{user.role}模式）" if user.role != "geospatial analyst" else ""
+            role_hint = f"（{user.role}）" if "geospatial analyst" not in user.role.lower() else ""
             tool_hint = ""
             if user.tool_prefs:
                 tool_hint = f"\n  · 偏好工具: {', '.join(user.tool_prefs[:3])}"
