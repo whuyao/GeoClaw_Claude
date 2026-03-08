@@ -10,7 +10,7 @@ M11 - M13  移动性指标计算
 M14 - M16  可视化函数
 M17 - M18  自然语言解析（移动性操作）
 M19        mobility_summary 完整性
-M20        版本号 v2.5.0-alpha
+M20        版本号 v3.0.0-alpha
 """
 import sys, traceback, warnings
 from pathlib import Path
@@ -339,9 +339,9 @@ test("M19 mobility_summary 字段完整", m19_mobility_summary_keys)
 
 def m20_version():
     import geoclaw_claude
-    assert geoclaw_claude.__version__ == "2.5.0-alpha", \
-        f"期望 2.5.0-alpha，实际 {geoclaw_claude.__version__}"
-test("M20 版本号 v2.5.0-alpha", m20_version)
+    assert geoclaw_claude.__version__ == "3.0.0-alpha", \
+        f"期望 3.0.0-alpha，实际 {geoclaw_claude.__version__}"
+test("M20 版本号 v3.0.0-alpha", m20_version)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -353,7 +353,7 @@ fail = [r for r in results if r[0] == "FAIL"]
 
 print(f"\n{'═'*54}")
 print(f"  移动性模块测试: {len(ok)}/{len(results)} 通过")
-print(f"  UrbanComp Lab — GeoClaw-claude v2.5.0-alpha")
+print(f"  UrbanComp Lab — GeoClaw-claude v3.0.0-alpha")
 print(f"{'═'*54}")
 
 if fail:

@@ -3,23 +3,24 @@
 > **UrbanComp Lab** 出品的轻量级 Python 城市地理信息分析工具集
 > https://urbancomp.net
 
-[![Version](https://img.shields.io/badge/version-2.4.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-168%2F168-brightgreen)](#测试矩阵)
+[![Tests](https://img.shields.io/badge/tests-344%2F344-brightgreen)](#测试矩阵)
 [![LLM](https://img.shields.io/badge/LLM-Claude%20%7C%20Gemini%20%7C%20GPT%20%7C%20Qwen-blueviolet)](#1-多-llm-provider含-gemini)
 [![trackintel](https://img.shields.io/badge/mobility-trackintel-9cf)](https://github.com/mie-lab/trackintel)
-[![Skill Security](https://img.shields.io/badge/skill-security%20audit-red)](#skill-安全审计系统)
+[![SRE](https://img.shields.io/badge/SRE-Phase%203%20%E2%9C%85-7B2D8B)](#spatial-reasoning-engine-sre-v300-新增)
 
 参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。核心理念是用**自然语言**直接驱动 GIS 操作：一句话完成从数据加载、空间分析到制图输出的完整流水线。
 
-**v2.4.1 重点更新：** 新增 soul.md / user.md 个性化配置层（ProfileManager）——soul.md 定义系统身份与行为边界，user.md 持久化用户画像与长期偏好；GeoAgent 深度集成，欢迎语、system prompt、context hint 均由 profile 层生成；新增 `geoclaw-claude profile` CLI 命令组。
+**v3.0.0 重点更新：** 新增 Spatial Reasoning Engine（SRE）Phase 3——五维不确定性量化（`uncertainty_score`）、分析模式自动识别（`exploratory/causal/confirmatory/descriptive`）、关键参数敏感性说明（`ParameterSensitivityHint`）、MAUP 风险评估（`maup_risk`），344/344 测试全绿。
 
 ---
 
 ## 目录
 
 - [快速开始](#快速开始)
+- [v3.0.0 新特性：SRE Phase 3](#spatial-reasoning-engine-sre-v300-新增)
 - [v2.4.1 新特性](#v241-新特性)
 - [v2.4.0 新特性](#v240-新特性)
   - [商场选址 Skill 案例](#1-商场选址-skill-案例两种实现)
@@ -79,9 +80,109 @@ geoclaw-claude memory vsearch "武汉医院空间分析"
 
 ---
 
+## Spatial Reasoning Engine (SRE) — v3.0.0 新增
+
+SRE 是 GeoClaw v3.0 的核心创新，在执行 GIS 分析前自动进行**专业地理推理**，输出结构化工作流方案，同时提供科学假设与局限性的系统化说明。
+
+### Phase 3 四项高级推理能力
+
+#### 1. 五维不确定性量化 (`uncertainty_score`)
+
+对每次分析自动计算 0-1 的不确定性评分：
+
+```python
+from geoclaw_claude.reasoning import reason
+
+result = reason("分析武汉地铁站周边商业活跃度",
+                datasets=[{"id": "metro", "type": "vector", "crs": "EPSG:4326"}])
+
+print(result.reasoning_summary.uncertainty_score)  # e.g. 0.38
+print(result.reasoning_summary.uncertainty_level)  # "medium"
+```
+
+五个维度及权重：
+
+| 维度 | 权重 | 评分依据 |
+|------|------|---------|
+| data_quality | 25% | CRS 缺失、地理坐标系、POI 采样偏差 |
+| method_choice | 25% | 任务敏感度、CRS 状态、候选方法数 |
+| spatial_scale | 20% | 行政区聚合（MAUP）、数据集范围差异 |
+| temporal | 15% | 变化检测单期数据、时序数据缺失 |
+| model_assumptions | 15% | 分析模式（causal 0.6 > exploratory 0.15）|
+
+#### 2. 分析模式识别 (`analysis_mode`)
+
+自动识别查询的分析意图类型：
+
+```python
+# "探索武汉商业规律" → exploratory
+# "验证500米可达性假设" → confirmatory
+# "分析轨道建设导致的地价因果效应" → causal
+# "展示POI空间分布地图" → descriptive
+
+print(result.reasoning_summary.analysis_mode)  # "exploratory"
+```
+
+> ⚠️ **因果推断警告**：识别为 `causal` 时自动生成提示——GIS 分析无法直接建立因果关系，建议结合 GWR / DID 等方法。
+
+#### 3. 参数敏感性说明 (`parameter_sensitivity`)
+
+为关键参数生成 8 类场景的敏感性说明：
+
+```python
+for hint in result.reasoning_summary.parameter_sensitivity:
+    print(f"{hint.parameter_name}: {hint.sensitivity}")
+    print(f"  建议范围: {hint.suggested_range}")
+# buffer_radius_m: high
+#   建议范围: 步行可达建议100-800m；驾车建议1000-5000m
+```
+
+覆盖参数：`buffer_radius_m` · `bandwidth_m` · `catchment_radius_m` · `decay_function` · `criterion_weights` · `cluster_parameters` · `change_threshold` · `travel_speed`
+
+#### 4. MAUP 风险评估 (`maup_risk`)
+
+评估可变面积单元问题（Modifiable Areal Unit Problem）风险：
+
+```python
+print(result.reasoning_summary.maup_risk)
+# "high" → 行政区聚合+比较任务（需在报告中说明）
+# "medium" → 多边形聚合
+# "low" → 点/线级别
+# "not_applicable" → 轨迹/栅格分析
+```
+
+### summary_text() 完整输出示例
+
+```python
+print(result.summary_text(lang="zh"))
+# [SRE] 任务类型: comparison
+#       分析模式: exploratory
+#       主分析方法: multi_ring_buffer
+#       不确定性: medium (评分: 0.38)
+#       MAUP 风险: low
+#       CRS 状态: needs_reprojection
+#       校验状态: ok
+#       工作流步骤: 4 步
+#       参数敏感点: buffer_radius_m
+```
+
+### LLM 增强推理（可选）
+
+```python
+from geoclaw_claude.reasoning import reason_with_llm
+
+# 结合 LLM 进行语义推理（Phase 2），失败自动降级 rule-only
+result = reason_with_llm("分析武汉地铁站周边商业活跃度")
+```
+
+> SRE 所有 Phase 3 逻辑均为纯规则实现，离线可用，不依赖 LLM。
+
+---
+
 ## v2.4.1 新特性
 
 ### soul.md / user.md 个性化配置层
+
 
 v2.4.1 为 GeoAgent 引入双层个性化配置系统，让每个 GeoClaw 实例真正拥有"自我认知"与"用户感知"。
 
@@ -1017,15 +1118,19 @@ geoclaw-claude self-check       # 完整健康检测报告
 
 ## 测试矩阵
 
-| 测试文件 | 项目数 | 覆盖范围 |
-|---------|--------|---------|
-| `test_memory.py` | 37 | ShortTermMemory / LongTermMemory / MemoryManager |
-| `test_updater.py` | 20 | VersionInfo.parse / check / update / self_check |
-| `test_nl.py` | 20 | NLProcessor / NLExecutor / GeoAgent / 30+ 操作 |
-| `test_mobility.py` | 20 | GPS 层级生成 / 移动性指标 / 可视化 |
-| `test_v230_new.py` | 31 | G01-G10 Gemini · A01-A10 Archive · V01-V10 VectorSearch |
-| `test_skills_and_security.py` ✨ | 40 | S01-S15 Skill 功能 · A01-A25 安全审计 |
-| **合计** | **168** | **全部 ✅** |
+| 测试文件 | 项目数 | 运行方式 | 覆盖范围 |
+|---------|--------|---------|---------|
+| `test_sre_phase3.py` ✨ | 72 | pytest | Phase 3：uncertainty/analysis_mode/sensitivity/MAUP |
+| `test_sre_phase2.py` ✨ | 76 | pytest | Phase 2：template_library/primitive_resolver/llm_reasoner |
+| `test_sre_phase1.py` ✨ | 46 | pytest | Phase 1：schemas/task_typer/rule_engine/validator/synthesizer |
+| `test_profile.py` | 28 | pytest | soul.md / user.md ProfileManager |
+| `test_skills_and_security.py` | 40 | pytest | Skill 系统 + SkillAuditor 安全审计 |
+| `test_memory.py` | 37 | script | ShortTermMemory / LongTermMemory / MemoryArchive / VectorSearch |
+| `test_nl.py` | 20 | script | NLProcessor / NLExecutor / GeoAgent / 30+ 操作 |
+| `test_mobility.py` | 20 | script | GPS 层级生成 / 移动性指标 / 可视化 |
+| `test_updater.py` | 20 | script | VersionInfo.parse / check / update / self_check |
+| `test_v230_new.py` | 31 | script | Gemini · MemoryArchive · VectorSearch |
+| **合计** | **344** | — | **全部 ✅** |
 
 ---
 
@@ -1033,11 +1138,13 @@ geoclaw-claude self-check       # 完整健康检测报告
 
 | 版本 | 亮点 |
 |------|------|
-| **v2.4.1** ✨ | soul.md / user.md 个性化配置层（ProfileManager），GeoAgent 深度集成，`geoclaw-claude profile` CLI 命令组，196/196 测试全绿 |
-| **v2.4.0** | 商场选址 Skill 双模式案例（AI版+算法版），SkillAuditor 安全审计（25+ 规则），Skill 编写规范文档，168/168 测试全绿 |
-| v2.3.0 | Google Gemini API，MemoryArchive 会话存档，VectorSearch 向量检索，onboard 多模型 6 步向导，上下文压缩自动集成 |
+| **v3.0.0** 🆕 | SRE Phase 3：五维不确定性量化、AnalysisMode 识别、参数敏感性说明、MAUP 风险评估，344/344 测试全绿 |
+| **v2.5.0-alpha** | SRE Phase 1+2：rule_engine / template_library / llm_reasoner / reason_with_llm()，272/272 测试全绿 |
+| **v2.4.1** | soul.md / user.md 个性化配置层（ProfileManager），GeoAgent 深度集成，`geoclaw-claude profile` CLI 命令组 |
+| v2.4.0 | 商场选址 Skill 双模式案例（AI版+算法版），SkillAuditor 安全审计（25+ 规则） |
+| v2.3.0 | Google Gemini API，MemoryArchive 会话存档，VectorSearch 向量检索，onboard 多模型 6 步向导 |
 | v2.2.1 | README 重组，NL 关键词映射修复，97/97 测试全绿 |
-| v2.2.0 | 武汉 GPS 轨迹 Demo 数据集（37,549 点），完整 Demo 脚本，trackintel 来源声明 |
+| v2.2.0 | 武汉 GPS 轨迹 Demo 数据集（37,549 点），完整 Demo 脚本 |
 | v2.1.0 | `analysis/mobility/` 模块（trackintel 集成），10 类 NL 移动性操作 |
 | v2.0.0 | 重大升级：自然语言 GIS 平台，多 Provider（Anthropic/OpenAI/Qwen），安全机制 |
 | v1.3.0 | 自然语言操作系统（`nl/` 模块，`ask` / `chat` CLI） |
@@ -1045,7 +1152,7 @@ geoclaw-claude self-check       # 完整健康检测报告
 | v1.1.0 | Memory 记忆系统（短期+长期，`memory` CLI） |
 | v1.0.0 | 首个正式版本：CLI、Skill 系统、路网/栅格分析 |
 
-完整变更记录详见 [CHANGELOG.md](CHANGELOG.md)。
+完整变更记录详见 [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

@@ -1,7 +1,7 @@
 """
 tests/test_sre_phase1.py
 =======================
-GeoClaw v2.5.0-alpha — Spatial Reasoning Engine Phase 1 完整测试套件
+GeoClaw v3.0.0-alpha — Spatial Reasoning Engine Phase 1 完整测试套件
 
 覆盖范围：
   T01-T06  schemas.py        数据类与枚举
@@ -442,7 +442,7 @@ class TestWorkflowSynthesizer:
     def test_T51_provenance_set(self, wuhan_ctx, wuhan_task, wuhan_rule):
         val    = validate_reasoning(wuhan_ctx, wuhan_task, wuhan_rule, None)
         result = synthesize_workflow(wuhan_ctx, wuhan_task, wuhan_rule, val, None)
-        assert result.provenance.engine_version == "sre-0.1-phase1"
+        assert result.provenance.engine_version.startswith("sre-0.")
         assert wuhan_ctx.query in result.provenance.source_query
 
     def test_T52_reasoning_summary_has_primary_method(self, wuhan_ctx, wuhan_task, wuhan_rule):

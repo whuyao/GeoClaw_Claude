@@ -93,6 +93,9 @@ __all__ = [
     # Phase 2 新增
     "reason_with_llm",
     "LLMReasoningOutput",
+    # Phase 3 新增
+    "AnalysisMode",
+    "ParameterSensitivityHint",
 ]
 
 

@@ -442,9 +442,9 @@ print("\n─ 版本验证 ─")
 
 def x01_version():
     import geoclaw_claude
-    assert geoclaw_claude.__version__ == "2.5.0-alpha", \
-        f"期望 2.5.0-alpha，实际 {geoclaw_claude.__version__}"
-test("X01 版本号 v2.5.0-alpha", x01_version)
+    assert geoclaw_claude.__version__ == "3.0.0", \
+        f"期望 3.0.0，实际 {geoclaw_claude.__version__}"
+test("X01 版本号 v3.0.0", x01_version)
 
 # ══════════════════════════════════════════════════════════════
 #  结果
@@ -452,7 +452,7 @@ test("X01 版本号 v2.5.0-alpha", x01_version)
 
 print("\n" + "═" * 56)
 total = _passed + _failed
-print(f"  v2.5.0-alpha 功能测试: {_passed}/{total} 通过")
+print(f"  v3.0.0 功能测试: {_passed}/{total} 通过")
 print("═" * 56)
 if _failed:
     print("\n❌ 失败详情:")

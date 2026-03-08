@@ -392,14 +392,41 @@ class InputAssessment:
 
 
 @dataclass
+class ParameterSensitivityHint:
+    """单个参数的敏感性说明（Phase 3）"""
+    parameter_name:  str    # 参数名称，如 "buffer_radius_m"
+    sensitivity:     str    # low / medium / high
+    description:     str    # 敏感性说明
+    suggested_range: str    = ""  # 建议取值范围，如 "300–800m"
+    method_id:       str    = ""  # 所属方法 ID
+
+
+# ── Phase 3：分析模式枚举 ─────────────────────────────────────────────────────
+
+class AnalysisMode(str, Enum):
+    """分析模式（Phase 3：exploratory vs causal 区分）"""
+    EXPLORATORY   = "exploratory"    # 探索性：发现规律、生成假设
+    CONFIRMATORY  = "confirmatory"   # 验证性：检验已有假设
+    CAUSAL        = "causal"         # 因果推断：控制混淆变量
+    DESCRIPTIVE   = "descriptive"    # 描述性：空间模式概述
+    UNKNOWN       = "unknown"
+
+
+@dataclass
 class ReasoningSummary:
-    """方法选择与理由（文档 7.2 C）"""
+    """方法选择与理由（文档 7.2 C，Phase 3 扩展）"""
     primary_method:             str           = ""
     secondary_methods:          List[str]     = field(default_factory=list)
     method_selection_rationale: List[str]     = field(default_factory=list)
     assumptions:                List[str]     = field(default_factory=list)
     limitations:                List[str]     = field(default_factory=list)
-    uncertainty_level:          str           = "unknown"
+    uncertainty_level:          str           = "unknown"   # low / medium / high / unknown
+    # Phase 3 新增
+    uncertainty_score:          float         = -1.0        # 0-1，-1 表示未评估
+    analysis_mode:              str           = "unknown"   # exploratory / confirmatory / causal / descriptive
+    parameter_sensitivity:      List["ParameterSensitivityHint"] = field(default_factory=list)
+    maup_risk:                  str           = "unknown"   # low / medium / high / not_applicable
+    scale_effects_notes:        List[str]     = field(default_factory=list)
 
 
 @dataclass
@@ -503,15 +530,23 @@ class SpatialReasoningResult:
         return _convert(self)
 
     def summary_text(self, lang: str = "zh") -> str:
-        """生成人类可读的推理摘要（供 GeoAgent 直接展示）"""
+        """生成人类可读的推理摘要（供 GeoAgent 直接展示，Phase 3 增强）"""
+        rs = self.reasoning_summary
+        score_str = f"{rs.uncertainty_score:.2f}" if rs.uncertainty_score >= 0 else "N/A"
+
         if lang == "zh":
             lines = [
                 f"[SRE] 任务类型: {self.task_profile.task_type.value}",
-                f"      主分析方法: {self.reasoning_summary.primary_method or '待定'}",
+                f"      分析模式: {rs.analysis_mode}",
+                f"      主分析方法: {rs.primary_method or '待定'}",
+                f"      不确定性: {rs.uncertainty_level} (评分: {score_str})",
+                f"      MAUP 风险: {rs.maup_risk}",
                 f"      CRS 状态: {self.input_assessment.crs_status.value}",
                 f"      校验状态: {self.validation.status.value}",
                 f"      工作流步骤: {len(self.workflow_plan.steps)} 步",
             ]
+            if rs.parameter_sensitivity:
+                lines.append(f"      参数敏感点: {', '.join(h.parameter_name for h in rs.parameter_sensitivity[:3])}")
             if self.validation.blocking_errors:
                 lines.append(f"      ⛔ 阻断错误: {'; '.join(self.validation.blocking_errors)}")
             if self.validation.warnings:
@@ -520,9 +555,14 @@ class SpatialReasoningResult:
         else:
             lines = [
                 f"[SRE] Task: {self.task_profile.task_type.value}",
-                f"      Primary method: {self.reasoning_summary.primary_method or 'TBD'}",
+                f"      Mode: {rs.analysis_mode}",
+                f"      Primary method: {rs.primary_method or 'TBD'}",
+                f"      Uncertainty: {rs.uncertainty_level} (score: {score_str})",
+                f"      MAUP risk: {rs.maup_risk}",
                 f"      CRS: {self.input_assessment.crs_status.value}",
                 f"      Validation: {self.validation.status.value}",
                 f"      Steps: {len(self.workflow_plan.steps)}",
             ]
+            if rs.parameter_sensitivity:
+                lines.append(f"      Sensitive params: {', '.join(h.parameter_name for h in rs.parameter_sensitivity[:3])}")
         return "\n".join(lines)

@@ -39,7 +39,7 @@ from geoclaw_claude.reasoning.schemas import (
 )
 
 # SRE 引擎版本
-_SRE_VERSION = "sre-0.2-phase2"
+_SRE_VERSION = "sre-0.3-phase3"
 
 
 def synthesize_workflow(
@@ -65,8 +65,8 @@ def synthesize_workflow(
     # 1. 输入评估
     input_assessment = _build_input_assessment(ctx, rule_output)
 
-    # 2. 推理摘要
-    reasoning_summary = _build_reasoning_summary(task_profile, rule_output, llm_output)
+    # 2. 推理摘要（Phase 3：注入 uncertainty_assessor 结果）
+    reasoning_summary = _build_reasoning_summary(ctx, task_profile, rule_output, llm_output)
 
     # 3. 工作流计划
     workflow_plan = _build_workflow_plan(ctx, task_profile, rule_output, llm_output)
@@ -149,27 +149,48 @@ def _build_input_assessment(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _build_reasoning_summary(
+    ctx: ReasoningContext,
     task_profile: TaskProfile,
     rule_output: RuleEngineOutput,
     llm_output: Optional[LLMReasoningOutput],
 ) -> ReasoningSummary:
-    # Phase 2：使用 LLM 输出
+    # ── Phase 3: 不确定性评估 ─────────────────────────────────────────────────
+    from geoclaw_claude.reasoning.uncertainty_assessor import (
+        assess_uncertainty,
+        uncertainty_score_to_level,
+    )
+    ua = assess_uncertainty(ctx, task_profile, rule_output, llm_output)
+    uncertainty_level = uncertainty_score_to_level(ua.uncertainty_score)
+
+    # Phase 2：使用 LLM 输出（+ Phase 3 字段）
     if llm_output is not None:
+        # 如果 LLM 给了 uncertainty_level 且 Phase 3 评估也有，取较高的
+        llm_level = llm_output.uncertainty_level or "unknown"
+        _level_rank = {"low": 0, "medium": 1, "high": 2, "unknown": -1}
+        final_level = uncertainty_level if (
+            _level_rank.get(uncertainty_level, -1) >= _level_rank.get(llm_level, -1)
+        ) else llm_level
+
         return ReasoningSummary(
             primary_method             = llm_output.primary_method,
             secondary_methods          = llm_output.secondary_methods,
             method_selection_rationale = llm_output.method_rationale,
             assumptions                = llm_output.assumptions,
             limitations                = llm_output.limitations,
-            uncertainty_level          = llm_output.uncertainty_level,
+            uncertainty_level          = final_level,
+            # Phase 3
+            uncertainty_score          = ua.uncertainty_score,
+            analysis_mode              = ua.analysis_mode,
+            parameter_sensitivity      = ua.parameter_sensitivity,
+            maup_risk                  = ua.maup_risk,
+            scale_effects_notes        = ua.scale_effects_notes,
         )
 
-    # Phase 1：从规则层 method_candidates 推断
+    # Phase 1：从规则层 method_candidates 推断（+ Phase 3 字段）
     candidates = rule_output.method_candidates
     primary    = candidates[0].method_id if candidates else ""
     secondary  = [c.method_id for c in candidates[1:3]]
 
-    # 生成简要 rationale
     rationale  = _generate_phase1_rationale(task_profile, rule_output)
     assumptions, limitations = _generate_phase1_caveats(task_profile, rule_output)
 
@@ -179,7 +200,13 @@ def _build_reasoning_summary(
         method_selection_rationale = rationale,
         assumptions                = assumptions,
         limitations                = limitations,
-        uncertainty_level          = "medium",
+        uncertainty_level          = uncertainty_level,
+        # Phase 3
+        uncertainty_score          = ua.uncertainty_score,
+        analysis_mode              = ua.analysis_mode,
+        parameter_sensitivity      = ua.parameter_sensitivity,
+        maup_risk                  = ua.maup_risk,
+        scale_effects_notes        = ua.scale_effects_notes,
     )
 
 
