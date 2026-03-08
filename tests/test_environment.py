@@ -111,7 +111,7 @@ def t_area():
         "geometry": [Polygon([(100,20),(110,20),(110,30),(100,30),(100,20)])]
     }, crs="EPSG:4326")
     poly_layer = GeoLayer(poly_gdf, name="Zones")
-    result = calculate_area(poly_layer, col="area_km2", unit="km2")
+    result = calculate_area(poly_layer, column="area_km2", unit="km2")
     assert "area_km2" in result.data.columns
 
 def t_nearest():

@@ -160,20 +160,24 @@ class GeoLayer:
 
     # ── 数据操作 ──────────────────────────────────────────────────────────────
 
-    def reproject(self, epsg: int) -> "GeoLayer":
+    def reproject(self, epsg) -> "GeoLayer":
         """
         将图层重投影到指定 EPSG 坐标系，返回新图层（原图层不变）。
 
         Args:
-            epsg: 目标 EPSG 代码 (如 32650 = UTM Zone 50N，适合武汉市)
+            epsg: 目标 EPSG 代码，支持整数 (32650) 或字符串 ("EPSG:32650")
 
         Returns:
             重投影后的新 GeoLayer
 
         TODO:
-            - [ ] 支持 PROJ 字符串输入 (不仅限于 EPSG 整数)
             - [ ] 地理 CRS → 投影 CRS 时，在 summary 中提示单位由度变为米
         """
+        # 支持 "EPSG:32650" 或 32650 两种格式
+        if isinstance(epsg, str):
+            epsg_str = epsg.upper()
+            if epsg_str.startswith("EPSG:"):
+                epsg = int(epsg_str.split(":")[1])
         reprojected = self._data.to_crs(epsg=epsg)
         new_layer = GeoLayer(reprojected, name=f"{self.name} [EPSG:{epsg}]", source=self.source)
         new_layer._history = self._history.copy()
