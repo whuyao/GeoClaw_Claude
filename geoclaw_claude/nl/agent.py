@@ -95,6 +95,10 @@ class GeoAgent:
             auto_create=True,
         ).load()
 
+        # ── ProfileUpdater：对话中动态更新 soul.md / user.md ─────────────────
+        from geoclaw_claude.nl.profile_manager import ProfileUpdater
+        self._profile_updater = ProfileUpdater(self.profile, verbose=verbose)
+
         self._proc = NLProcessor(api_key=api_key, use_ai=use_ai, verbose=verbose)
         self._exec = NLExecutor(memory_session=session_id, verbose=verbose,
                                 output_dir=output_dir)
@@ -126,6 +130,14 @@ class GeoAgent:
         # ── 处理待确认意图 ────────────────────────────────────────────────────
         if self._pending_intent is not None:
             return self._handle_confirmation(text)
+
+        # ── 检测 profile 更新意图（优先于 GIS 操作解析）─────────────────────
+        profile_result = self._profile_updater.maybe_update(text)
+        if profile_result is not None:
+            msg = profile_result.message
+            if profile_result.blocked:
+                msg = f"[安全锁定] {profile_result.message}"
+            return self._add_agent_msg(msg)
 
         # ── 解析意图 ──────────────────────────────────────────────────────────
         context = self._build_context()
@@ -335,9 +347,27 @@ class GeoAgent:
         }
         return s
 
-    def end(self, title: str = "") -> None:
-        """结束会话，写入长期记忆。"""
+    def end(self, title: str = "", auto_update_profile: bool = True) -> None:
+        """
+        结束会话，写入长期记忆，并可选地根据对话内容自动更新 user.md。
+
+        Args:
+            title             : 会话标题
+            auto_update_profile: 是否根据对话历史自动更新 user.md（默认 True）
+        """
         self._exec.end_session(title=title)
+
+        # 对话结束时自动提取偏好并更新 user.md
+        if auto_update_profile and len(self._history) >= 2:
+            turns = [
+                {"role": m.role, "content": m.text}
+                for m in self._history
+            ]
+            llm = self._proc._llm_provider if hasattr(self._proc, "_llm_provider") else None
+            results = self._profile_updater.summarize_and_update(turns, llm_provider=llm)
+            if results and self.verbose:
+                for r in results:
+                    print(f"  [end] {r.message}")
 
     def __repr__(self) -> str:
         s = self.status()

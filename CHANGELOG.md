@@ -1,3 +1,46 @@
+## v3.1.0 (2026-03-08) — Ollama 本地大模型支持 + 对话驱动 Profile 更新
+
+### 新增功能
+
+#### Ollama 本地大模型支持（nl/llm_provider.py）
+- **PROVIDER_OLLAMA**：新增 `ollama` Provider，无需 API Key，支持全离线部署
+- **OLLAMA_DEFAULT_BASE_URL**：默认地址 `http://localhost:11434/v1`，兼容局域网部署（自定义 `ollama_base_url`）
+- **OLLAMA_MODELS**：内置常用模型列表（llama3 / qwen2.5 / deepseek-r1 / mistral / gemma3 / phi4 等 12 款）
+- **_call_ollama()**：基于 OpenAI 兼容接口调用，不依赖额外 SDK（复用 openai 库）
+- **Provider 优先级更新**：anthropic → gemini → openai → qwen → **ollama（本地离线兜底）**
+- **ProviderConfig 扩展**：ollama 模式下 `api_key` 自动设为 dummy "ollama"，`is_valid` 只需 `base_url + model`
+
+#### Config 新增字段（config.py）
+- `ollama_base_url`：Ollama 服务地址（默认 `http://localhost:11434/v1`）
+- `ollama_model`：默认使用模型（默认 `llama3`）
+- `llm_provider` 新增可选值：`ollama`
+
+#### 对话驱动 Profile 更新（nl/profile_manager.py）
+- **ProfileUpdater**：新增核心类，在对话中根据用户输入动态更新 `soul.md` / `user.md`
+  - `maybe_update(user_input)`：自动检测偏好更新意图并执行写入
+  - `update_user_field(field, value)`：直接精准更新 user.md 中任意字段
+  - `summarize_and_update(turns, llm_provider)`：会话结束时批量提取偏好更新（支持 AI 驱动 + 规则降级）
+  - AI 驱动：请 LLM 从对话历史提取 preferred_lang / comm_style / role / tool_prefs / output_format
+  - 规则驱动：统计中英文用量自动推断语言偏好，无需 LLM
+- **安全锁定机制**：以下 soul.md 字段不允许通过对话修改
+  - `Safety Boundaries` / `Execution Hierarchy` / `Core Principles` / `Data Handling Rules`
+  - 触碰安全字段时返回 `UpdateResult(blocked=True)`，并提示手动编辑路径
+- **UpdateResult**：新增结果数据类（file / fields / message / changed / blocked）
+- **GeoAgent 集成**：
+  - `__init__`：自动初始化 `_profile_updater`
+  - `chat()`：每次对话优先检测 profile 更新意图（安全锁拦截 > 偏好更新 > GIS 操作）
+  - `end(auto_update_profile=True)`：会话结束时自动调用 `summarize_and_update()`
+
+### 测试
+- **test_v310_new.py**：30 项新特性专项测试（O01-O10 Ollama / P01-P15 ProfileUpdater / I01-I05 集成）
+- 累计测试：**374/374 全绿**（344 + 30）
+
+### 版本
+- `__version__ = "3.1.0"`
+- SRE 引擎版本：sre-0.3-phase3（不变）
+
+---
+
 ## v3.0.0-alpha (2026-03-08) — Spatial Reasoning Engine Phase 2
 
 ### 新增功能

@@ -5,21 +5,33 @@ geoclaw_claude/nl/llm_provider.py
 
 多 LLM Provider 适配层
 
-统一封装 Anthropic Claude / OpenAI / Qwen（通义千问）/ Google Gemini 的 API 调用，
-对外暴露统一接口 LLMProvider.chat()，上层代码无需感知具体 Provider。
+统一封装 Anthropic Claude / OpenAI / Qwen（通义千问）/ Google Gemini /
+Ollama（本地大模型）的 API 调用，对外暴露统一接口 LLMProvider.chat()，
+上层代码无需感知具体 Provider。
 
 支持的 Provider:
   - anthropic : Claude 系列（claude-sonnet-4-20250514 等）
   - openai    : GPT-4o / GPT-4o-mini 等，以及任意 OpenAI 兼容 API
   - qwen      : 通义千问（qwen-max / qwen-plus / qwen-turbo），OpenAI 兼容接口
   - gemini    : Google Gemini（gemini-2.0-flash / gemini-1.5-pro 等）
+  - ollama    : 本地大模型（llama3 / qwen2.5 / deepseek-r1 等），无需 API Key
 
 Provider 选择优先级（自动模式）:
   1. 已设置 anthropic_api_key → anthropic
   2. 已设置 gemini_api_key    → gemini
   3. 已设置 openai_api_key    → openai
   4. 已设置 qwen_api_key      → qwen
-  5. 均未设置                 → 降级规则模式（返回 None）
+  5. ollama_base_url 可达      → ollama（本地离线优先）
+  6. 均不可用                 → 降级规则模式（返回 None）
+
+Ollama 快速上手:
+  # 安装并启动 Ollama 服务（默认端口 11434）
+  # 拉取模型: ollama pull llama3 / qwen2.5 / deepseek-r1 等
+  # 在 geoclaw config 中设置:
+  #   ollama_base_url = "http://localhost:11434"
+  #   ollama_model    = "llama3"          # 或 qwen2.5, deepseek-r1:7b ...
+  #   llm_provider    = "ollama"          # 可选: 强制使用 ollama
+  # Ollama 使用 OpenAI 兼容接口，无需 API Key（api_key 自动设为 "ollama"）
 
 Copyright (c) 2025 UrbanComp Lab (https://urbancomp.net) — MIT License
 """
@@ -37,9 +49,13 @@ PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_OPENAI    = "openai"
 PROVIDER_QWEN      = "qwen"
 PROVIDER_GEMINI    = "gemini"
+PROVIDER_OLLAMA    = "ollama"
 
 # Qwen 兼容 OpenAI 的 base_url
 QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+# Ollama 默认 base_url（本地服务，无需 API Key）
+OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1"
 
 # 各 Provider 默认模型
 DEFAULT_MODELS = {
@@ -47,6 +63,7 @@ DEFAULT_MODELS = {
     PROVIDER_OPENAI:    "gpt-4o-mini",
     PROVIDER_QWEN:      "qwen-plus",
     PROVIDER_GEMINI:    "gemini-2.0-flash",
+    PROVIDER_OLLAMA:    "llama3",
 }
 
 # Gemini 可用模型列表（供 onboard 提示）
@@ -56,6 +73,22 @@ GEMINI_MODELS = [
     "gemini-1.5-flash",
     "gemini-1.5-pro",
     "gemini-2.5-pro-preview-03-25",
+]
+
+# Ollama 常用模型列表（供 onboard 提示）
+OLLAMA_MODELS = [
+    "llama3",
+    "llama3.1",
+    "llama3.2",
+    "qwen2.5",
+    "qwen2.5:7b",
+    "qwen2.5:14b",
+    "deepseek-r1",
+    "deepseek-r1:7b",
+    "deepseek-r1:14b",
+    "mistral",
+    "gemma3",
+    "phi4",
 ]
 
 
@@ -92,9 +125,18 @@ class ProviderConfig:
             self.model = DEFAULT_MODELS.get(self.provider, "")
         if self.provider == PROVIDER_QWEN and not self.base_url:
             self.base_url = QWEN_BASE_URL
+        # Ollama: no API key needed, use OpenAI-compat endpoint
+        if self.provider == PROVIDER_OLLAMA:
+            if not self.base_url:
+                self.base_url = OLLAMA_DEFAULT_BASE_URL
+            if not self.api_key:
+                self.api_key = "ollama"   # openai client requires non-empty key
 
     @property
     def is_valid(self) -> bool:
+        if self.provider == PROVIDER_OLLAMA:
+            # Ollama only needs base_url (api_key is dummy "ollama")
+            return bool(self.base_url and self.model)
         return bool(self.api_key and self.model)
 
 
@@ -172,6 +214,13 @@ class LLMProvider:
                 api_key=getattr(cfg, "qwen_api_key", ""),
                 model=getattr(cfg, "qwen_model", DEFAULT_MODELS[PROVIDER_QWEN]),
             ),
+            # Ollama: local model, no API key required
+            ProviderConfig(
+                provider=PROVIDER_OLLAMA,
+                api_key="ollama",
+                model=getattr(cfg, "ollama_model", DEFAULT_MODELS[PROVIDER_OLLAMA]),
+                base_url=getattr(cfg, "ollama_base_url", OLLAMA_DEFAULT_BASE_URL),
+            ),
         ]
 
         # 若指定/强制 provider，只用该 provider
@@ -217,6 +266,8 @@ class LLMProvider:
                 return self._call_anthropic(messages, system, mt)
             elif self.config.provider == PROVIDER_GEMINI:
                 return self._call_gemini(messages, system, mt)
+            elif self.config.provider == PROVIDER_OLLAMA:
+                return self._call_ollama(messages, system, mt)
             elif self.config.provider in (PROVIDER_OPENAI, PROVIDER_QWEN):
                 return self._call_openai_compat(messages, system, mt)
             else:
@@ -405,6 +456,69 @@ class LLMProvider:
             tokens_out=usage.completion_tokens if usage else 0,
             raw=resp,
         )
+
+    # ── Ollama 本地模型调用（OpenAI 兼容接口）──────────────────────────────────
+
+    def _call_ollama(
+        self,
+        messages: List[Dict[str, str]],
+        system: str,
+        max_tokens: int,
+    ) -> Optional[LLMResponse]:
+        """
+        调用本地 Ollama 服务（兼容 OpenAI /v1/chat/completions 接口）。
+
+        前置条件:
+          1. 安装 Ollama: https://ollama.com/download
+          2. 启动服务: ollama serve  （默认端口 11434）
+          3. 拉取模型: ollama pull llama3  （或 qwen2.5 / deepseek-r1 等）
+          4. 设置 config: ollama_model = "llama3", ollama_base_url = "http://localhost:11434/v1"
+
+        不需要 API Key，ollama_base_url 可自定义（支持局域网部署）。
+        """
+        try:
+            from openai import OpenAI
+        except ImportError:
+            if self.verbose:
+                print("  [LLM] openai 库未安装（Ollama 依赖此库）：pip install openai")
+            return None
+
+        api_messages: List[Dict[str, str]] = []
+        if system:
+            api_messages.append({"role": "system", "content": system})
+        for m in messages:
+            role = m.get("role", "user")
+            if role == "system":
+                api_messages.append({"role": "system", "content": m["content"]})
+            else:
+                api_messages.append({"role": role, "content": m["content"]})
+
+        try:
+            client = OpenAI(
+                api_key=self.config.api_key,   # "ollama"（dummy，Ollama 不校验）
+                base_url=self.config.base_url,
+            )
+            resp = client.chat.completions.create(
+                model=self.config.model,
+                max_tokens=max_tokens,
+                temperature=self.config.temperature,
+                messages=api_messages,
+            )
+            content = resp.choices[0].message.content or "" if resp.choices else ""
+            usage = resp.usage
+            return LLMResponse(
+                content=content,
+                provider=PROVIDER_OLLAMA,
+                model=self.config.model,
+                tokens_in=getattr(usage, "prompt_tokens", 0) or 0,
+                tokens_out=getattr(usage, "completion_tokens", 0) or 0,
+                raw=resp,
+            )
+        except Exception as e:
+            if self.verbose:
+                print(f"  [LLM] Ollama 调用失败: {e}")
+                print(f"       请确认 Ollama 服务已启动 (ollama serve) 且模型已拉取 (ollama pull {self.config.model})")
+            return None
 
 
 # ── 辅助：清理 JSON 响应 ────────────────────────────────────────────────────

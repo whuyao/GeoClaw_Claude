@@ -58,8 +58,11 @@ class Config:
     qwen_api_key:      str = ""          # 通义千问 API Key（DashScope）
     qwen_model:        str = "qwen-plus" # Qwen 默认模型
 
+    ollama_base_url:   str = "http://localhost:11434/v1"  # Ollama 本地服务地址
+    ollama_model:      str = "llama3"    # Ollama 默认模型（需已 ollama pull）
+
     llm_provider:      str = ""          # 强制指定 provider（空=自动选择）
-                                         # 可选: anthropic / gemini / openai / qwen
+                                         # 可选: anthropic / gemini / openai / qwen / ollama
 
     # ── 上下文压缩 ────────────────────────────────────────────────────────────
     ctx_max_tokens:    int  = 6000   # 触发压缩的 token 阈值

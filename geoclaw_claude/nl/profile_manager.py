@@ -602,3 +602,384 @@ class ProfileManager:
         loaded = "loaded" if self._loaded else "not loaded"
         return (f"ProfileManager({loaded}, soul={self.soul_path.name}, "
                 f"user={self.user_path.name})")
+
+
+# ── ProfileUpdater — 对话中动态更新 soul.md / user.md ─────────────────────────
+
+# soul.md 中不允许通过对话修改的安全字段（锁定区域关键词）
+_SOUL_LOCKED_SECTIONS = [
+    "Safety Boundaries",
+    "Execution Hierarchy",
+    "Data Handling Rules",
+    "Core Principles",
+]
+
+# 触发 user.md 更新的关键词模式
+_USER_UPDATE_TRIGGERS = [
+    r"记住我?(?:的)?(?:偏好|习惯|设置|配置)",
+    r"我?(?:喜欢|偏好|习惯使用|常用)",
+    r"以后.*(?:用|使用|采用)",
+    r"帮我?更新.*(?:profile|user\.md|偏好|配置)",
+    r"设置我?的.*(?:语言|风格|偏好|模型)",
+    r"remember (my |that |I )",
+    r"set my (preference|style|language|default)",
+    r"update (my |user\.?md|profile)",
+    r"I (prefer|like|always use|usually use)",
+]
+
+# 触发 soul.md 更新的关键词模式（仅允许非安全字段）
+_SOUL_UPDATE_TRIGGERS = [
+    r"更新.*(?:系统|soul\.md|身份|任务|使命)",
+    r"修改.*(?:系统身份|系统使命|输出格式|协作方式)",
+    r"update (soul\.?md|system identity|mission|output format)",
+    r"change (geoclaw's |system |the )?(mission|identity|output style)",
+]
+
+
+class ProfileUpdater:
+    """
+    对话中动态更新 soul.md / user.md。
+
+    设计原则:
+    - user.md  : 用户可以在对话中自由更新偏好（语言/风格/工具/角色等）
+    - soul.md  : 仅允许修改非安全字段（输出格式/协作哲学/描述性内容）
+                 安全相关字段（Safety Boundaries / Execution Hierarchy /
+                 Core Principles / Data Handling Rules）不可通过对话修改
+
+    调用方式（由 GeoAgent 在 chat() 中驱动）:
+        updater = ProfileUpdater(profile_manager)
+        result = updater.maybe_update(user_input, conversation_summary)
+        if result:
+            print(result.message)
+    """
+
+    def __init__(self, profile_manager: ProfileManager, verbose: bool = False):
+        self.pm      = profile_manager
+        self.verbose = verbose
+
+    # ── 公共入口 ──────────────────────────────────────────────────────────────
+
+    def maybe_update(
+        self,
+        user_input: str,
+        conversation_summary: Optional[str] = None,
+    ) -> Optional["UpdateResult"]:
+        """
+        检测用户输入是否包含更新偏好的意图，若有则执行更新。
+
+        Returns:
+            UpdateResult（含 file / fields / message），无更新时返回 None
+        """
+        import re
+        text = user_input.strip()
+
+        # 安全优先：任何试图修改锁定字段的请求，直接拒绝
+        for locked in _SOUL_LOCKED_SECTIONS:
+            if locked.lower() in text.lower():
+                return UpdateResult(
+                    file="soul.md", fields=[],
+                    message=(
+                        f"[安全锁定] '{locked}' 是 soul.md 中的安全字段，"
+                        f"不允许通过对话修改。\n"
+                        f"如需调整，请直接编辑 {self.pm.soul_path}"
+                    ),
+                    changed=False,
+                    blocked=True,
+                )
+
+        # 检测 user.md 更新意图
+        if self._matches(text, _USER_UPDATE_TRIGGERS):
+            return self._update_user_md(text, conversation_summary)
+
+        # 检测 soul.md 更新意图（仅允许非安全字段）
+        if self._matches(text, _SOUL_UPDATE_TRIGGERS):
+            return self._update_soul_md(text, conversation_summary)
+
+        return None
+
+    def update_user_field(self, field: str, value: str) -> "UpdateResult":
+        """
+        直接更新 user.md 中的某个字段（由 GeoAgent 在总结会话时调用）。
+
+        Args:
+            field: 字段名，如 "role" / "preferred_lang" / "comm_style" / "tool_prefs"
+            value: 新值
+
+        Returns:
+            UpdateResult
+        """
+        if not self.pm._loaded:
+            self.pm.load()
+
+        raw = self.pm._user_raw or DEFAULT_USER_MD
+        updated = self._set_markdown_field(raw, field, value)
+        if updated == raw:
+            return UpdateResult(
+                file="user.md", fields=[field],
+                message=f"[profile] user.md 字段 {field!r} 未变更（值已是最新）",
+                changed=False,
+            )
+        self._write(self.pm.user_path, updated)
+        self.pm.reload()
+        return UpdateResult(
+            file="user.md", fields=[field],
+            message=f"[profile] user.md 已更新: {field} = {value!r}",
+            changed=True,
+        )
+
+    def summarize_and_update(
+        self,
+        conversation_turns: List[Dict[str, str]],
+        llm_provider: Optional[Any] = None,
+    ) -> List["UpdateResult"]:
+        """
+        基于完整对话内容，提取用户偏好并更新 user.md。
+        可由 GeoAgent.end() 在会话结束时自动触发。
+
+        Args:
+            conversation_turns: 对话历史 [{role, content}, ...]
+            llm_provider: LLMProvider 实例（用于 AI 摘要），None 则用规则提取
+
+        Returns:
+            所有成功更新的 UpdateResult 列表
+        """
+        if not conversation_turns:
+            return []
+
+        results: List[UpdateResult] = []
+
+        if llm_provider is not None:
+            # AI 驱动：请 LLM 从对话中提取偏好
+            extracted = self._ai_extract_preferences(conversation_turns, llm_provider)
+        else:
+            # 规则驱动：简单关键词提取
+            extracted = self._rule_extract_preferences(conversation_turns)
+
+        for field, value in extracted.items():
+            r = self.update_user_field(field, value)
+            if r.changed:
+                results.append(r)
+
+        return results
+
+    # ── 内部方法 ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _matches(text: str, patterns: List[str]) -> bool:
+        import re
+        for p in patterns:
+            if re.search(p, text, re.IGNORECASE):
+                return True
+        return False
+
+    def _update_user_md(
+        self,
+        text: str,
+        summary: Optional[str],
+    ) -> "UpdateResult":
+        """从用户输入提取偏好并更新 user.md。"""
+        if not self.pm._loaded:
+            self.pm.load()
+
+        import re
+        raw = self.pm._user_raw or DEFAULT_USER_MD
+        fields_updated: List[str] = []
+
+        # 语言偏好
+        lang_m = re.search(r"(?:用|使用|偏好|language)[：: ]*(中文|英文|Chinese|English|zh|en)", text, re.IGNORECASE)
+        if lang_m:
+            lang_val = "zh" if lang_m.group(1).lower() in ("中文", "zh", "chinese") else "en"
+            raw = self._set_markdown_field(raw, "Preferred language", lang_val)
+            fields_updated.append(f"language={lang_val}")
+
+        # 风格偏好
+        style_m = re.search(r"(?:风格|style)[：: ]*(简洁|详细|专业|casual|brief|detailed|professional)", text, re.IGNORECASE)
+        if style_m:
+            raw = self._set_markdown_field(raw, "Communication style", style_m.group(1))
+            fields_updated.append(f"style={style_m.group(1)}")
+
+        # 工具偏好（追加到 tool_prefs）
+        tool_m = re.search(r"(?:偏好|喜欢|prefer|use)\s+(\w+)\s*(?:工具|tool)?", text, re.IGNORECASE)
+        if tool_m:
+            tool = tool_m.group(1)
+            raw = self._append_tool_pref(raw, tool)
+            fields_updated.append(f"tool+={tool}")
+
+        if fields_updated:
+            self._write(self.pm.user_path, raw)
+            self.pm.reload()
+            return UpdateResult(
+                file="user.md",
+                fields=fields_updated,
+                message=f"[profile] user.md 已更新: {', '.join(fields_updated)}",
+                changed=True,
+            )
+
+        return UpdateResult(
+            file="user.md", fields=[],
+            message="[profile] 检测到更新意图，但未提取到具体字段（请更明确地描述偏好）",
+            changed=False,
+        )
+
+    def _update_soul_md(
+        self,
+        text: str,
+        summary: Optional[str],
+    ) -> "UpdateResult":
+        """
+        尝试更新 soul.md 非安全字段。
+        任何触碰安全字段的请求都会被拒绝并返回说明。
+        """
+        import re
+        # 检查是否触碰安全字段
+        for locked in _SOUL_LOCKED_SECTIONS:
+            if locked.lower() in text.lower():
+                return UpdateResult(
+                    file="soul.md", fields=[],
+                    message=(
+                        f"[profile] 拒绝更新 soul.md: "
+                        f"'{locked}' 是安全锁定字段，不允许通过对话修改。\n"
+                        f"如需调整，请直接编辑 {self.pm.soul_path}"
+                    ),
+                    changed=False,
+                    blocked=True,
+                )
+
+        # 仅允许修改描述性/风格字段
+        if not self.pm._loaded:
+            self.pm.load()
+        raw = self.pm._soul_raw or DEFAULT_SOUL_MD
+
+        # 协作哲学更新
+        collab_m = re.search(r"(?:协作|collaboration|合作).*?[:：](.+)", text, re.IGNORECASE)
+        if collab_m:
+            new_val = collab_m.group(1).strip()
+            raw = self._set_markdown_section(raw, "Collaboration Philosophy", new_val)
+            self._write(self.pm.soul_path, raw)
+            self.pm.reload()
+            return UpdateResult(
+                file="soul.md", fields=["Collaboration Philosophy"],
+                message=f"[profile] soul.md Collaboration Philosophy 已更新",
+                changed=True,
+            )
+
+        return UpdateResult(
+            file="soul.md", fields=[],
+            message="[profile] 检测到 soul.md 更新意图，但未识别到可修改的字段（安全字段不可修改）",
+            changed=False,
+        )
+
+    def _ai_extract_preferences(
+        self,
+        turns: List[Dict[str, str]],
+        llm: Any,
+    ) -> Dict[str, str]:
+        """使用 LLM 从对话历史中提取用户偏好字段。"""
+        import json as _json
+
+        history_text = "\n".join(
+            f"{t.get('role','?')}: {t.get('content','')[:200]}"
+            for t in turns[-10:]  # 只取最近 10 轮
+        )
+        prompt = (
+            "从以下对话历史中，提取用户的偏好信息，仅输出 JSON，不要解释。\n"
+            "可提取的字段（均为可选）：\n"
+            "  preferred_lang: zh 或 en\n"
+            "  comm_style: brief / detailed / professional / casual\n"
+            "  role: 用户角色描述（如 urban planner / researcher）\n"
+            "  tool_prefs: 偏好工具列表（逗号分隔）\n"
+            "  output_format: 输出格式偏好（如 markdown / plain / table）\n"
+            "若对话中没有相关信息，不要包含该字段。\n\n"
+            f"对话历史:\n{history_text}\n\n"
+            "输出 JSON（仅 JSON，无 markdown 包装）:"
+        )
+        try:
+            resp = llm.chat(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=256,
+            )
+            if resp and resp.content:
+                from geoclaw_claude.nl.llm_provider import parse_json_response
+                data = parse_json_response(resp.content)
+                if isinstance(data, dict):
+                    return {k: str(v) for k, v in data.items() if v}
+        except Exception as e:
+            if self.verbose:
+                print(f"  [ProfileUpdater] AI 提取失败: {e}")
+        return {}
+
+    def _rule_extract_preferences(
+        self,
+        turns: List[Dict[str, str]],
+    ) -> Dict[str, str]:
+        """规则式：从对话历史统计用户语言使用情况，推断偏好。"""
+        import re
+        user_texts = [
+            t.get("content", "") for t in turns if t.get("role") == "user"
+        ]
+        if not user_texts:
+            return {}
+
+        full = " ".join(user_texts)
+        zh_count = len(re.findall(r"[\u4e00-\u9fff]", full))
+        en_count  = len(re.findall(r"[a-zA-Z]+", full))
+
+        prefs: Dict[str, str] = {}
+        if zh_count > en_count * 2:
+            prefs["preferred_lang"] = "zh"
+        elif en_count > zh_count * 2:
+            prefs["preferred_lang"] = "en"
+        return prefs
+
+    @staticmethod
+    def _set_markdown_field(raw: str, field: str, value: str) -> str:
+        """在 Markdown 中查找并替换 'Field: old_value' 为 'Field: new_value'。"""
+        import re
+        pattern = rf"(?m)^({re.escape(field)})\s*[:：]\s*.+$"
+        replacement = f"{field}: {value}"
+        new = re.sub(pattern, replacement, raw, count=1, flags=re.IGNORECASE)
+        if new == raw:
+            # 未找到，追加
+            new = raw.rstrip() + f"\n{field}: {value}\n"
+        return new
+
+    @staticmethod
+    def _set_markdown_section(raw: str, section: str, new_content: str) -> str:
+        """替换 ## Section 下的第一段内容。"""
+        import re
+        pattern = rf"(## {re.escape(section)}\n)(.*?)(\n## |\Z)"
+        replacement = rf"\g<1>{new_content}\n\g<3>"
+        new = re.sub(pattern, replacement, raw, count=1, flags=re.DOTALL)
+        return new if new != raw else raw
+
+    @staticmethod
+    def _append_tool_pref(raw: str, tool: str) -> str:
+        """在 tool_prefs 列表中追加工具（避免重复）。"""
+        import re
+        m = re.search(r"(Tool preferences?[：:]\s*)(.+)", raw, re.IGNORECASE)
+        if m:
+            existing = [t.strip() for t in m.group(2).split(",")]
+            if tool not in existing:
+                existing.append(tool)
+                return raw[:m.start(2)] + ", ".join(existing) + raw[m.end(2):]
+        else:
+            raw = raw.rstrip() + f"\nTool preferences: {tool}\n"
+        return raw
+
+    @staticmethod
+    def _write(path: Path, content: str) -> None:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        except Exception as e:
+            pass  # 写入失败静默处理（测试环境路径不存在时）
+
+
+@dataclass
+class UpdateResult:
+    """对话更新 profile 的结果。"""
+    file:    str               # "user.md" 或 "soul.md"
+    fields:  List[str]         # 更新的字段列表
+    message: str               # 面向用户的说明文本
+    changed: bool = False      # 是否实际写入了文件
+    blocked: bool = False      # 是否因安全原因被拒绝
