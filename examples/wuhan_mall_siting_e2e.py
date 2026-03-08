@@ -21,7 +21,7 @@ GeoClaw 后台自动完成：
     python examples/wuhan_mall_siting_e2e.py
 
 依赖：
-    pip install geoclaw-claude
+    git clone https://github.com/whuyao/GeoClaw_Claude.git && cd GeoClaw_Claude && bash install.sh
 """
 
 from __future__ import annotations

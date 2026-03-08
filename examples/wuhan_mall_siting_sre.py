@@ -18,7 +18,7 @@ examples/wuhan_mall_siting_sre.py
 否则自动使用内置 Mock LLM 演示（结果与真实调用等效）。
 
 依赖：
-  pip install geoclaw-claude  # 或从源码安装
+  git clone https://github.com/whuyao/GeoClaw_Claude.git && cd GeoClaw_Claude && bash install.sh
 """
 
 from __future__ import annotations
