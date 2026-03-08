@@ -21,6 +21,7 @@
 
 - [快速开始](#快速开始)
 - [v3.0.0 新特性：SRE Phase 3](#spatial-reasoning-engine-sre-v300-新增)
+  - [武汉商场选址示例 & 新手指南](#v300-示例与文档-)
 - [v2.4.1 新特性](#v241-新特性)
 - [v2.4.0 新特性](#v240-新特性)
   - [商场选址 Skill 案例](#1-商场选址-skill-案例两种实现)
@@ -179,7 +180,51 @@ result = reason_with_llm("分析武汉地铁站周边商业活跃度")
 
 ---
 
-## v2.4.1 新特性
+## v3.0.0 示例与文档 ✨
+
+### 武汉商场选址端到端示例
+
+v3.0.0 新增两个以「武汉新建商场选址分析」为主题的完整示例，展示 SRE + GIS 执行的完整链路：
+
+| 示例文件 | 定位 | 适合人群 |
+|---------|------|---------|
+| [`examples/wuhan_mall_siting_e2e.py`](examples/wuhan_mall_siting_e2e.py) | **端到端用户视角**：用户只需提问，后台自动完成 SRE 推理 → GIS 执行 → 输出报告+地图，全程无需了解内部细节 | 普通用户、评审者、演示场合 |
+| [`examples/wuhan_mall_siting_sre.py`](examples/wuhan_mall_siting_sre.py) | **SRE 推理层演示**：逐步展示 Rule-Only 与 LLM 增强推理的差异，对比两种模式的输出字段与置信度 | 框架开发者、研究者 |
+
+**端到端示例运行方式：**
+
+```bash
+python examples/wuhan_mall_siting_e2e.py
+```
+
+**用户只需这样问：**
+
+```
+「在武汉哪里适合建设新的商场，给出最推荐的5个地点名称」
+```
+
+GeoClaw 后台自动完成四步：① 自然语言解析 → ② SRE 推理（选择 `weighted_overlay` 方法）→ ③ GIS 执行（缓冲区 + KDE + 加权叠加）→ ④ 生成分析报告与地图。总耗时约 2 秒。
+
+---
+
+### 新手入门指南
+
+v3.0.0 新增面向**零基础用户**的中文新手入门指南，适合无编程背景的学生、城市规划师、政府工作人员：
+
+📄 [`docs/GeoClaw-claude_Beginner_Guide_v3.0.0.pdf`](docs/GeoClaw-claude_Beginner_Guide_v3.0.0.pdf)
+
+指南共 3 页，涵盖：
+
+- **是什么**：一句话说清楚，附典型应用场景对照表
+- **安装（5 分钟）**：4 步图文说明，含常见权限问题解法
+- **快速上手**：命令行对话模式（推荐）+ 3 行 Python 脚本，两种方式均有完整演示
+- **常用问句参考**：9 类场景的即用例句，直接复制替换城市名即可
+- **常见问题 Q&A**：6 条高频问题与解决方法
+- **获取帮助**：GitHub、官网、内置 `help` 命令入口
+
+---
+
+
 
 ### soul.md / user.md 个性化配置层
 
@@ -1076,7 +1121,9 @@ GeoClaw_Claude/
 │   ├── wuhan/                        # 武汉 GIS 示例数据（7 个 GeoJSON）
 │   └── mobility/                     # GPS 轨迹测试数据（37,549 点）
 ├── examples/
-│   └── wuhan_mobility_demo.py
+│   ├── wuhan_mobility_demo.py
+│   ├── wuhan_mall_siting_sre.py      # 武汉商场选址（SRE 推理层演示，开发者视角）✨ v3.0.0
+│   └── wuhan_mall_siting_e2e.py      # 武汉商场选址（端到端，用户只需提问即可）✨ v3.0.0
 ├── tests/
 │   ├── test_memory.py          (37)
 │   ├── test_updater.py         (20)
@@ -1090,6 +1137,9 @@ GeoClaw_Claude/
 │       ├── evil_inject.py            #   代码注入+混淆（CRITICAL）
 │       └── evil_file_ops.py          #   危险文件操作（HIGH/CRITICAL）
 ├── docs/
+│   ├── GeoClaw-claude_Beginner_Guide_v3.0.0.docx / .pdf   # 新手入门指南（中文，零基础适用）✨ v3.0.0
+│   ├── GeoClaw-claude_User_Guide_v3.0.0.docx / .pdf       ✨ v3.0.0
+│   ├── GeoClaw-claude_Technical_Reference_v3.0.0.docx / .pdf  ✨ v3.0.0
 │   ├── GeoClaw-claude_User_Guide_v2.4.1.docx / .pdf       ✨ v2.4.1
 │   ├── GeoClaw-claude_Technical_Reference_v2.4.1.docx / .pdf  ✨ v2.4.1
 │   ├── GeoClaw-claude_User_Guide_v2.3.0.docx / .pdf
