@@ -893,6 +893,8 @@ geoclaw-claude memory archive stats
 | `skill_manager` | Skill 注册/执行/安全审计管理 |
 | `skill_auditor` | SkillAuditor：AST+正则静态安全扫描（25+ 规则）✨ v2.4.0 |
 | `updater` | 版本自检、自动更新、健康检测 |
+| `~/.geoclaw_claude/soul.md` | 系统自我定义与行为边界配置文件（全局，高优先级）✨ v2.4.1 |
+| `~/.geoclaw_claude/user.md` | 用户画像与长期偏好配置文件（软个性化，不覆盖 soul 边界）✨ v2.4.1 |
 
 ---
 
@@ -934,7 +936,7 @@ pip install sentence-transformers   # 神经网络向量检索（替代默认 TF
 ```
 GeoClaw_Claude/
 ├── geoclaw_claude/
-│   ├── cli.py                        # CLI 入口（ask / chat / memory / skill / ...）
+│   ├── cli.py                        # CLI 入口（ask / chat / memory / skill / profile / ...）✨ v2.4.1
 │   ├── config.py                     # 配置管理（含 Gemini、上下文压缩所有参数）
 │   ├── skill_manager.py              # Skill 注册/执行/安全集成
 │   ├── skill_auditor.py              # SkillAuditor：静态安全审计 ✨ v2.4.0
@@ -993,6 +995,11 @@ GeoClaw_Claude/
 │   ├── GeoClaw-claude_Technical_Reference_v2.3.0.docx / .pdf
 │   └── SKILL_WRITING_GUIDE.docx / .pdf  ✨ v2.4.0
 └── CHANGELOG.md
+# 运行时配置目录（首次运行自动创建）
+~/.geoclaw_claude/
+├── soul.md          # 系统自我定义与行为边界（可自定义）✨ v2.4.1
+├── user.md          # 用户画像与长期偏好（可自定义）✨ v2.4.1
+└── memory/          # 长期记忆持久化存储
 ```
 
 ---
