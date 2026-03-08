@@ -3,28 +3,34 @@
 > **UrbanComp Lab** 出品的轻量级 Python 城市地理信息分析工具集
 > https://urbancomp.net
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-128%2F128-brightgreen)](#测试矩阵)
+[![Tests](https://img.shields.io/badge/tests-168%2F168-brightgreen)](#测试矩阵)
 [![LLM](https://img.shields.io/badge/LLM-Claude%20%7C%20Gemini%20%7C%20GPT%20%7C%20Qwen-blueviolet)](#1-多-llm-provider含-gemini)
 [![trackintel](https://img.shields.io/badge/mobility-trackintel-9cf)](https://github.com/mie-lab/trackintel)
+[![Skill Security](https://img.shields.io/badge/skill-security%20audit-red)](#skill-安全审计系统)
 
 参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。核心理念是用**自然语言**直接驱动 GIS 操作：一句话完成从数据加载、空间分析到制图输出的完整流水线。
 
-**v2.3.0 重点更新：** 新增 Google Gemini API 支持、会话记忆存档系统、向量语义检索、多模型 onboard 配置向导。
+**v2.4.0 重点更新：** 新增商场选址 Skill 双模式案例（AI 驱动版 + MCDA 算法版）、Skill 安全审计系统（SkillAuditor，AST+正则静态分析，5 级风险分类）、Skill 编写规范与安全指南文档。
 
 ---
 
 ## 目录
 
 - [快速开始](#快速开始)
+- [v2.4.0 新特性](#v240-新特性)
+  - [商场选址 Skill 案例](#1-商场选址-skill-案例两种实现)
+  - [Skill 安全审计系统](#2-skill-安全审计系统)
+  - [Skill 编写规范文档](#3-skill-编写规范文档)
 - [v2.3.0 新特性](#v230-新特性)
   - [多 LLM Provider（含 Gemini）](#1-多-llm-provider含-gemini)
   - [记忆存档系统](#2-记忆存档系统memoryarchive)
   - [向量语义检索](#3-向量语义检索vectorsearch)
   - [自动上下文压缩](#4-自动上下文压缩)
   - [Onboard 多模型向导](#5-onboard-多模型配置向导)
+- [Skill 系统](#skill-系统)
 - [自然语言操作系统](#自然语言操作系统)
 - [人类移动性分析](#人类移动性分析)
 - [Memory 记忆系统](#memory-记忆系统)
@@ -54,9 +60,169 @@ geoclaw-claude ask "读入 data/mobility/wuhan_gps_tracks.csv"
 geoclaw-claude ask "一键完成移动性分析"
 geoclaw-claude ask "轨迹地图"
 
+# Skill：商场选址分析（算法版，无需 API Key）
+geoclaw-claude skill run retail_site_algo --data candidates.geojson --radius_km=2.0 --top_n=3
+
+# Skill：商场选址分析（AI 驱动版，需配置 API Key）
+geoclaw-claude skill run retail_site_ai --data candidates.geojson --ai --top_n=3
+
+# Skill 安全审计（安装前扫描）
+geoclaw-claude skill audit ./my_skill.py
+
+# 列出所有已安装 Skill
+geoclaw-claude skill list
+
 # 向量语义搜索历史记忆
 geoclaw-claude memory vsearch "武汉医院空间分析"
 ```
+
+---
+
+## v2.4.0 新特性
+
+### 1. 商场选址 Skill 案例（两种实现）
+
+v2.4.0 新增两个内置 Skill，以「商场选址综合分析」为主题，展示 Skill 系统的两种核心设计范式：
+
+#### `retail_site_ai`：AI 大语言模型驱动版
+
+以 LLM 为核心分析引擎：Python 精确计算各候选点的商圈面积、竞争密度、候选点间距等空间指标，再将所有指标结构化后交给 LLM 综合推理，由 AI 动态分配评分权重并输出中文选址报告。
+
+```bash
+# 需配置 API Key（--ai 启用 LLM）
+geoclaw-claude skill run retail_site_ai \
+    --data candidates.geojson \
+    --ai \
+    --radius_km=2.0 \
+    --top_n=3
+```
+
+| 特性 | 说明 |
+|------|------|
+| 核心引擎 | LLM（Claude / Gemini / GPT）综合推理 |
+| 权重 | AI 动态分配，可结合品牌策略等非结构化信息 |
+| 输出 | 带评分的候选点图层 + LLM 撰写的中文分析报告 |
+| 适用场景 | 需要结合商业逻辑、非结构化信息的决策支持 |
+
+#### `retail_site_algo`：纯 Python 算法版（MCDA）
+
+基于多准则决策分析（Multi-Criteria Decision Analysis），四维评分完全由确定性算法计算，**不依赖 LLM，可完全离线运行**：
+
+```bash
+# 无需 API Key，支持自定义权重
+geoclaw-claude skill run retail_site_algo \
+    --data candidates.geojson \
+    --radius_km=2.0 \
+    --top_n=3 \
+    --w_pop=0.4 \   # 人口密度权重
+    --w_comp=0.3 \  # 竞争回避权重
+    --w_disp=0.2 \  # 空间分散权重
+    --w_road=0.1    # 交通可达权重
+```
+
+| 评分维度 | 说明 | 参数 |
+|----------|------|------|
+| 人口密度得分 | 商圈内人口点数量 | `--w_pop`（默认 0.30） |
+| 竞争回避得分 | 商圈内竞对商场越少越高 | `--w_comp`（默认 0.25） |
+| 空间分散得分 | 候选点间距越大越高 | `--w_disp`（默认 0.25） |
+| 交通可达得分 | 附近路网/站点密度 | `--w_road`（默认 0.20） |
+
+输出图层包含 `score_total / score_pop / score_comp / score_disp / score_road / rank` 字段，可直接用于后续 GIS 分析。
+
+**两种实现对比：**
+
+| 维度 | AI 驱动版 (`retail_site_ai`) | 算法版 (`retail_site_algo`) |
+|------|------|------|
+| 分析核心 | LLM 综合推理 | MCDA 确定性计算 |
+| 需要 API Key | ✅ 是 | ❌ 否 |
+| 结果可复现 | ❌ 否（LLM 随机性） | ✅ 是 |
+| 权重 | AI 动态分配 | 用户参数指定 |
+| 适用场景 | 商业决策支持 | 批量筛查/对照实验 |
+
+---
+
+### 2. Skill 安全审计系统
+
+v2.4.0 引入 `SkillAuditor` 安全扫描器，**在每次 `skill install` 前自动对 Skill 源码进行静态分析**，无需执行代码即可识别潜在恶意行为。
+
+#### 风险等级
+
+| 等级 | 分值/项 | 触发行为示例 | 安装响应 |
+|------|---------|------------|---------|
+| 🔴 **CRITICAL** | +30 | `os.system()` / `eval()` / `exec()` / `requests.post(data=)` / `ctypes` / base64 混淆 | 强制输入 `yes` 确认；默认拒绝 |
+| 🟠 **HIGH** | +15 | `os.remove()` / `shutil.rmtree()` / `pickle.load()` / `subprocess.*()` | 警告提示，明确确认 |
+| 🟡 **MEDIUM** | +5 | `requests.get()` / `os.environ` / 动态导入 | 提示后继续 |
+| 🔵 **LOW** | +2 | 文件遍历 / 临时文件 | 自动通过 |
+| ⚪ **INFO** | 0 | 重型依赖（torch/cv2） | 仅提示 |
+
+综合风险分值 = 各发现项得分之和（上限 100），彩色进度条可视化。
+
+#### 使用方法
+
+```bash
+# 仅审计，不安装（推荐在安装前先用此命令检查）
+geoclaw-claude skill audit ./my_skill.py
+
+# 安装时自动触发安全审计（默认行为）
+geoclaw-claude skill install ./my_skill.py
+
+# 跳过审计（不推荐用于第三方 Skill）
+geoclaw-claude skill install ./my_skill.py --no-audit
+```
+
+审计报告示例（高危 Skill）：
+
+```
+══════════════════════════════════════════════════════════════
+  🔍 GeoClaw-claude  Skill 安全审计报告
+══════════════════════════════════════════════════════════════
+  Skill 文件 : evil_exfil.py
+  风险分值   : 75/100  [████████████████░░░░]
+  审计结论   : ❌ 未通过（含 CRITICAL 风险）
+──────────────────────────────────────────────────────────────
+  [CRITICAL] (3 项)
+  ┌ [行 18] 命令执行
+  │ os.system() 可直接执行任意系统命令
+  │ 建议: 移除或替换为受限的 subprocess 调用
+  └
+  ...
+⛔ 检测到 CRITICAL 级风险！
+  请输入 yes 以继续安装（其他任意输入取消）: _
+```
+
+#### Python API
+
+```python
+from geoclaw_claude.skill_auditor import SkillAuditor, RiskLevel
+
+auditor = SkillAuditor()
+result  = auditor.audit("./my_skill.py")
+
+print(result.risk_score)       # 0~100
+print(result.max_level)        # RiskLevel.CRITICAL / HIGH / ...
+print(result.critical_count)   # CRITICAL 项数量
+print(auditor.format_report(result))  # 完整彩色报告
+
+# CI/CD 集成（退出码：4=CRITICAL, 3=HIGH, 2=MEDIUM, 0=通过）
+# geoclaw-claude skill audit ./skill.py; echo $?
+```
+
+---
+
+### 3. Skill 编写规范文档
+
+新增 [`docs/SKILL_WRITING_GUIDE.pdf`](docs/SKILL_WRITING_GUIDE.pdf)（共 8 章），完整覆盖 Skill 开发全流程：
+
+| 章节 | 内容 |
+|------|------|
+| 第 1 章：概述 | Skill 定义、两种实现范式、生命周期 |
+| 第 2 章：文件结构规范 | 完整文件模板（可直接复制使用） |
+| 第 3 章：SKILL_META 字段 | 必填/推荐/可选字段速查表 |
+| 第 4 章：SkillContext API | `get_layer()` / `param()` / `ask_ai()` / `result()` 完整参考 |
+| 第 5 章：安全规范 | 禁止行为清单、最佳实践 7 条、审计命令 |
+| 第 6 章：案例对比 | 商场选址 AI 版 vs 算法版完整对比 |
+| 第 7 章：测试规范 | 每个 Skill 必须测试的 5 类场景 |
+| 第 8 章：发布规范 | 发布清单（6 项）、社区贡献方式 |
 
 ---
 
@@ -320,6 +486,66 @@ geoclaw-claude config set gemini_api_key AIza...
 geoclaw-claude config set gemini_model gemini-3.1-pro-preview
 geoclaw-claude config show
 ```
+
+---
+
+## Skill 系统
+
+Skill 是 GeoClaw-claude 的核心扩展机制——一个符合统一规范的 Python 脚本文件，封装完整的地理空间分析工作流。
+
+### 内置 Skill 列表
+
+| Skill 名称 | 类型 | 说明 | 需要 AI |
+|-----------|------|------|--------|
+| `hospital_coverage` | 医疗可达性 | 医院服务缓冲区覆盖分析 + AI 解读 | 可选 |
+| `retail_site_ai` ✨ | 商业选址 | 商场选址 AI 综合评判版（LLM 推理） | 是 |
+| `retail_site_algo` ✨ | 商业选址 | 商场选址 MCDA 算法版（可复现） | 否 |
+
+### Skill 管理命令
+
+```bash
+# 列出所有可用 Skill
+geoclaw-claude skill list
+
+# 运行 Skill
+geoclaw-claude skill run retail_site_algo --data candidates.geojson
+
+# 安装第三方 Skill（自动安全审计）
+geoclaw-claude skill install ./my_skill.py
+
+# 仅做安全审计，不安装
+geoclaw-claude skill audit ./my_skill.py
+
+# 创建 Skill 开发模板
+geoclaw-claude skill new my_analysis
+```
+
+### 编写自定义 Skill
+
+最简 Skill 结构：
+
+```python
+# my_skill.py
+SKILL_META = {
+    "name":        "my_skill",
+    "version":     "1.0.0",
+    "author":      "Your Name",
+    "description": "功能描述",
+    "requires_ai": False,
+}
+
+def run(ctx):
+    layer  = ctx.get_layer("input")          # 读取输入图层
+    radius = float(ctx.param("radius", 1000)) # 读取参数
+    
+    from geoclaw_claude.analysis.spatial_ops import buffer
+    result = buffer(layer, radius)
+    
+    comment = ctx.ask_ai("请分析空间分布规律。")  # 可选 AI 分析
+    return ctx.result(result=result, report=comment)
+```
+
+> 📘 完整 Skill 编写规范详见 [`docs/SKILL_WRITING_GUIDE.pdf`](docs/SKILL_WRITING_GUIDE.pdf)
 
 ---
 
@@ -592,7 +818,11 @@ geoclaw-claude memory archive stats
 | `memory/manager` | MemoryManager：统一管理入口 |
 | `memory/archive` | MemoryArchive：会话快照存档系统 ✨ |
 | `memory/vector_search` | VectorSearch：TF-IDF / 神经网络语义检索 ✨ |
-| `skills/` | 用户自定义分析 Skill 脚本系统 |
+| `skills/builtin/hospital_coverage` | 内置 Skill：医院覆盖分析 |
+| `skills/builtin/retail_site_ai` | 内置 Skill：商场选址 AI 驱动版 ✨ v2.4.0 |
+| `skills/builtin/retail_site_algo` | 内置 Skill：商场选址 MCDA 算法版 ✨ v2.4.0 |
+| `skill_manager` | Skill 注册/执行/安全审计管理 |
+| `skill_auditor` | SkillAuditor：AST+正则静态安全扫描（25+ 规则）✨ v2.4.0 |
 | `updater` | 版本自检、自动更新、健康检测 |
 
 ---
@@ -635,8 +865,11 @@ pip install sentence-transformers   # 神经网络向量检索（替代默认 TF
 ```
 GeoClaw_Claude/
 ├── geoclaw_claude/
-│   ├── cli.py                        # CLI 入口（ask / chat / memory / check / ...）
+│   ├── cli.py                        # CLI 入口（ask / chat / memory / skill / ...）
 │   ├── config.py                     # 配置管理（含 Gemini、上下文压缩所有参数）
+│   ├── skill_manager.py              # Skill 注册/执行/安全集成
+│   ├── skill_auditor.py              # SkillAuditor：静态安全审计 ✨ v2.4.0
+│   ├── security.py                   # SecurityGuard：输出路径安全
 │   ├── nl/
 │   │   ├── processor.py              # NLProcessor：意图解析
 │   │   ├── executor.py               # NLExecutor：GIS 执行
@@ -657,6 +890,11 @@ GeoClaw_Claude/
 │   │   ├── manager.py                # 统一入口
 │   │   ├── archive.py                # 会话存档 ✨ v2.3.0
 │   │   └── vector_search.py          # 向量语义检索 ✨ v2.3.0
+│   ├── skills/
+│   │   └── builtin/
+│   │       ├── hospital_coverage.py  # 内置 Skill：医院覆盖分析
+│   │       ├── retail_site_ai.py     # 内置 Skill：商场选址 AI 版 ✨ v2.4.0
+│   │       └── retail_site_algo.py   # 内置 Skill：商场选址算法版 ✨ v2.4.0
 │   ├── cartography/
 │   ├── io/
 │   ├── core/
@@ -667,14 +905,20 @@ GeoClaw_Claude/
 ├── examples/
 │   └── wuhan_mobility_demo.py
 ├── tests/
-│   ├── test_memory.py    (37)
-│   ├── test_updater.py   (20)
-│   ├── test_nl.py        (20)
-│   ├── test_mobility.py  (20)
-│   └── test_v230_new.py  (31)   ← G01-G10 Gemini · A01-A10 Archive · V01-V10 VectorSearch
+│   ├── test_memory.py          (37)
+│   ├── test_updater.py         (20)
+│   ├── test_nl.py              (20)
+│   ├── test_mobility.py        (20)
+│   ├── test_v230_new.py        (31)  ← G01-G10 Gemini · A01-A10 Archive · V01-V10 VectorSearch
+│   ├── test_skills_and_security.py (40) ← S01-S15 Skill功能 · A01-A25 安全审计 ✨ v2.4.0
+│   └── malicious_skills/             # 高危 Skill 模拟文件（安全测试用）✨ v2.4.0
+│       ├── evil_exfil.py             #   命令执行+数据外泄（CRITICAL）
+│       ├── evil_inject.py            #   代码注入+混淆（CRITICAL）
+│       └── evil_file_ops.py          #   危险文件操作（HIGH/CRITICAL）
 ├── docs/
-│   ├── GeoClaw-claude_User_Guide_v2.2.1.pdf
-│   └── GeoClaw-claude_Technical_Reference_v2.2.1.pdf
+│   ├── GeoClaw-claude_User_Guide_v2.3.0.docx / .pdf
+│   ├── GeoClaw-claude_Technical_Reference_v2.3.0.docx / .pdf
+│   └── SKILL_WRITING_GUIDE.docx / .pdf  ✨ v2.4.0
 └── CHANGELOG.md
 ```
 
@@ -700,7 +944,8 @@ geoclaw-claude self-check       # 完整健康检测报告
 | `test_nl.py` | 20 | NLProcessor / NLExecutor / GeoAgent / 30+ 操作 |
 | `test_mobility.py` | 20 | GPS 层级生成 / 移动性指标 / 可视化 |
 | `test_v230_new.py` | 31 | G01-G10 Gemini · A01-A10 Archive · V01-V10 VectorSearch |
-| **合计** | **128** | **全部 ✅** |
+| `test_skills_and_security.py` ✨ | 40 | S01-S15 Skill 功能 · A01-A25 安全审计 |
+| **合计** | **168** | **全部 ✅** |
 
 ---
 
@@ -708,7 +953,8 @@ geoclaw-claude self-check       # 完整健康检测报告
 
 | 版本 | 亮点 |
 |------|------|
-| **v2.3.0** | Google Gemini API，MemoryArchive 会话存档，VectorSearch 向量检索，onboard 多模型 6 步向导，上下文压缩自动集成 |
+| **v2.4.0** ✨ | 商场选址 Skill 双模式案例（AI版+算法版），SkillAuditor 安全审计，Skill 编写规范文档，168/168 测试全绿 |
+| v2.3.0 | Google Gemini API，MemoryArchive 会话存档，VectorSearch 向量检索，onboard 多模型 6 步向导，上下文压缩自动集成 |
 | v2.2.1 | README 重组，NL 关键词映射修复，97/97 测试全绿 |
 | v2.2.0 | 武汉 GPS 轨迹 Demo 数据集（37,549 点），完整 Demo 脚本，trackintel 来源声明 |
 | v2.1.0 | `analysis/mobility/` 模块（trackintel 集成），10 类 NL 移动性操作 |
