@@ -49,207 +49,112 @@ def _info(msg): print(f"  {msg}")
 # ── onboard 向导 ──────────────────────────────────────────────────────────────
 
 def _run_onboard():
-    """交互式配置向导，引导用户完成初始化。"""
+    """交互式配置向导 — 极简版：只问必要的两件事。"""
     from geoclaw_claude.config import Config, CONFIG_FILE
-
     click = _ensure_click()
 
-    print("\n" + "═" * 60)
-    print("  🌍  GeoClaw-claude  初始化向导  v2.3.0")
-    print("═" * 60)
-    print("  按 Enter 保留当前值，输入新值后按 Enter 修改。\n")
+    print("\n" + "─" * 56)
+    print("  🌍  GeoClaw-claude  初始化向导  v3.1.0")
+    print("─" * 56)
 
     cfg = Config.load()
 
-    # ── 【1/6】LLM Provider 选择 ──────────────────────────────────────────
-    print("【1/6】AI 模型配置")
+    # ── 【1/2】选 Provider ──────────────────────────────────────────────
     print()
-    print("  可用 Provider:  anthropic / gemini / openai / qwen")
-    print("  （留空 = 自动按优先级选择：anthropic > gemini > openai > qwen）")
-    provider = click.prompt(
-        "  首选 LLM Provider",
-        default=cfg.llm_provider or "",
-    ).strip().lower()
-    cfg.llm_provider = provider if provider in ("anthropic", "gemini", "openai", "qwen") else ""
-
+    print("【1/2】选择 AI 模型来源")
     print()
-    # ── Anthropic ──
-    print("  ── Anthropic Claude ──")
-    key = click.prompt(
-        "  API Key",
-        default=cfg.anthropic_api_key or "",
-        hide_input=True,
-        show_default=False,
-        prompt_suffix="\n  > ",
-    ).strip()
-    if key:
-        cfg.anthropic_api_key = key
-
-    model = click.prompt(
-        "  模型（如 claude-sonnet-4-20250514 / claude-opus-4-20250514）",
-        default=cfg.anthropic_model,
-    ).strip()
-    if model:
-        cfg.anthropic_model = model
-
+    print("  1  Anthropic Claude   (推荐，效果最佳，需 API Key)")
+    print("  2  通义千问 Qwen       (中文强，需 DashScope API Key)")
+    print("  3  Google Gemini      (免费额度可用，需 API Key)")
+    print("  4  OpenAI GPT         (全球通用，需 API Key)")
+    print("  5  Ollama 本地模型     (完全免费离线，需本地安装 Ollama)")
+    print("  0  先跳过（之后可随时运行 geoclaw-claude onboard 再配置）")
     print()
-    # ── Google Gemini ──
-    print("  ── Google Gemini ──")
-    print("  可用模型: gemini-2.0-flash / gemini-2.0-flash-lite / gemini-1.5-pro / gemini-2.5-pro-preview-03-25")
-    gkey = click.prompt(
-        "  Gemini API Key（AIza...，留空跳过）",
-        default=cfg.gemini_api_key or "",
-        hide_input=True,
-        show_default=False,
-        prompt_suffix="\n  > ",
-    ).strip()
-    if gkey:
-        cfg.gemini_api_key = gkey
 
-    gmodel = click.prompt(
-        "  Gemini 模型",
-        default=cfg.gemini_model,
-    ).strip()
-    if gmodel:
-        cfg.gemini_model = gmodel
+    choice = click.prompt("  请输入序号", default="0").strip()
 
-    print()
-    # ── OpenAI ──
-    print("  ── OpenAI（也可用于任意 OpenAI 兼容 API）──")
-    okey = click.prompt(
-        "  OpenAI API Key（留空跳过）",
-        default=cfg.openai_api_key or "",
-        hide_input=True,
-        show_default=False,
-        prompt_suffix="\n  > ",
-    ).strip()
-    if okey:
-        cfg.openai_api_key = okey
-
-    if cfg.openai_api_key:
-        omodel = click.prompt("  OpenAI 模型", default=cfg.openai_model).strip()
-        if omodel:
-            cfg.openai_model = omodel
-        obase = click.prompt(
-            "  自定义 base_url（兼容 API 代理，留空=官方）",
-            default=cfg.openai_base_url or "",
+    if choice == "1":
+        key = click.prompt(
+            "  Anthropic API Key（sk-ant-...）",
+            default=cfg.anthropic_api_key or "",
+            hide_input=True, show_default=False, prompt_suffix="\n  > "
         ).strip()
-        cfg.openai_base_url = obase
+        if key:
+            cfg.anthropic_api_key = key
+            cfg.llm_provider = "anthropic"
 
-    print()
-    # ── Qwen ──
-    print("  ── 通义千问 Qwen ──")
-    qkey = click.prompt(
-        "  Qwen API Key（DashScope，留空跳过）",
-        default=cfg.qwen_api_key or "",
-        hide_input=True,
-        show_default=False,
-        prompt_suffix="\n  > ",
-    ).strip()
-    if qkey:
-        cfg.qwen_api_key = qkey
-
-    if cfg.qwen_api_key:
-        qmodel = click.prompt(
-            "  Qwen 模型（qwen-max / qwen-plus / qwen-turbo）",
-            default=cfg.qwen_model,
+    elif choice == "2":
+        key = click.prompt(
+            "  Qwen API Key（DashScope，sk-...）",
+            default=cfg.qwen_api_key or "",
+            hide_input=True, show_default=False, prompt_suffix="\n  > "
         ).strip()
-        if qmodel:
-            cfg.qwen_model = qmodel
+        if key:
+            cfg.qwen_api_key = key
+            cfg.llm_provider = "qwen"
 
-    # ── 【2/6】上下文压缩 ──────────────────────────────────────────────────
-    print("\n【2/6】上下文压缩配置")
-    print("  功能：对话历史超过阈值时自动压缩，避免超出 Token 限制。")
-    ctx_max = click.prompt(
-        "  触发压缩的 Token 阈值",
-        default=cfg.ctx_max_tokens,
-        type=int,
-    )
-    cfg.ctx_max_tokens = ctx_max
+    elif choice == "3":
+        key = click.prompt(
+            "  Gemini API Key（AIza...）",
+            default=cfg.gemini_api_key or "",
+            hide_input=True, show_default=False, prompt_suffix="\n  > "
+        ).strip()
+        if key:
+            cfg.gemini_api_key = key
+            cfg.llm_provider = "gemini"
 
-    ctx_target = click.prompt(
-        "  压缩目标 Token 数",
-        default=cfg.ctx_target_tokens,
-        type=int,
-    )
-    cfg.ctx_target_tokens = ctx_target
+    elif choice == "4":
+        key = click.prompt(
+            "  OpenAI API Key（sk-...）",
+            default=cfg.openai_api_key or "",
+            hide_input=True, show_default=False, prompt_suffix="\n  > "
+        ).strip()
+        if key:
+            cfg.openai_api_key = key
+            cfg.llm_provider = "openai"
 
-    ctx_keep = click.prompt(
-        "  保留最近 N 条消息不压缩",
-        default=cfg.ctx_keep_recent,
-        type=int,
-    )
-    cfg.ctx_keep_recent = ctx_keep
+    elif choice == "5":
+        print()
+        print("  Ollama 无需 API Key，请确保已安装并运行 Ollama。")
+        print("  安装：https://ollama.com/download")
+        print("  推荐模型：ollama pull qwen3:8b  （6 GB 内存）")
+        print()
+        url = click.prompt(
+            "  Ollama 服务地址",
+            default=cfg.ollama_base_url or "http://localhost:11434/v1",
+        ).strip()
+        cfg.ollama_base_url = url
+        model = click.prompt(
+            "  模型名称",
+            default=cfg.ollama_model or "qwen3:8b",
+        ).strip()
+        cfg.ollama_model = model
+        cfg.llm_provider = "ollama"
 
-    ctx_verbose = click.confirm(
-        "  显示压缩详情日志?",
-        default=cfg.ctx_compress_verbose,
-    )
-    cfg.ctx_compress_verbose = ctx_verbose
-
-    # ── 【3/6】数据目录 ───────────────────────────────────────────────────
-    print("\n【3/6】数据目录配置")
-    for attr, label in [
-        ("data_dir",   "本地数据目录"),
-        ("cache_dir",  "网络缓存目录"),
-        ("output_dir", "分析输出目录"),
-        ("skill_dir",  "用户 Skill 目录"),
-    ]:
-        val = click.prompt(f"  {label}", default=getattr(cfg, attr)).strip()
-        if val:
-            setattr(cfg, attr, val)
-
-    # ── 【4/6】网络配置 ───────────────────────────────────────────────────
-    print("\n【4/6】网络配置")
-    proxy = click.prompt("  HTTP 代理 (留空=不使用)", default=cfg.proxy or "").strip()
-    cfg.proxy = proxy
-
-    overpass = click.prompt("  Overpass API URL", default=cfg.overpass_url).strip()
-    if overpass:
-        cfg.overpass_url = overpass
-
-    cache = click.confirm("  启用网络请求缓存?", default=cfg.enable_cache)
-    cfg.enable_cache = cache
-    if cache:
-        ttl = click.prompt("  缓存有效期 (小时)", default=cfg.cache_ttl_hours, type=int)
-        cfg.cache_ttl_hours = ttl
-
-    # ── 【5/6】制图配置 ───────────────────────────────────────────────────
-    print("\n【5/6】制图配置")
-    crs = click.prompt("  默认坐标系 (EPSG代码)", default=cfg.default_crs).strip()
-    if crs:
-        cfg.default_crs = crs
-
-    dpi = click.prompt("  默认输出 DPI", default=cfg.default_dpi, type=int)
-    cfg.default_dpi = dpi
-
-    # ── 【6/6】日志配置 ───────────────────────────────────────────────────
-    print("\n【6/6】日志配置")
-    level = click.prompt(
-        "  日志级别",
-        default=cfg.log_level,
-        type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
-    ).upper()
-    cfg.log_level = level
-
-    # ── 保存 ──────────────────────────────────────────────────────────────
+    # ── 【2/2】输出目录 ─────────────────────────────────────────────────
     print()
-    if click.confirm("  保存以上配置?", default=True):
+    print("【2/2】分析结果保存目录")
+    out = click.prompt(
+        "  输出目录",
+        default=cfg.output_dir or "~/geoclaw_output",
+    ).strip()
+    if out:
+        cfg.output_dir = out
+
+    # ── 保存 ─────────────────────────────────────────────────────────────
+    print()
+    if click.confirm("  保存配置？", default=True):
         cfg.save()
         cfg.ensure_dirs()
-        _ok(f"配置已保存到: {CONFIG_FILE}")
-        print()
-        print(cfg.summary())
+        _ok(f"配置已保存: {CONFIG_FILE}")
 
-        # 验证 LLM 配置
-        print()
-        if click.confirm("  立即验证 LLM 连接?", default=False):
+        if choice not in ("0", "") and click.confirm("  立即验证 LLM 连接？", default=True):
             _verify_llm(cfg)
-    else:
-        _warn("已取消，配置未保存。")
 
-    print("\n  运行 `geoclaw-claude test` 验证环境是否正常。\n")
-
+    print()
+    print("  ✅  完成！运行 geoclaw-claude ask '你好' 开始使用。")
+    print("  📖  详细配置：geoclaw-claude config  |  帮助：geoclaw-claude -h")
+    print()
 
 def _verify_llm(cfg) -> None:
     """验证 LLM API 连接。"""
@@ -299,7 +204,7 @@ def main():
     # ── onboard ───────────────────────────────────────────────────────────────
     @cli.command()
     def onboard():
-        """🚀 交互式初始化向导：配置 API Key、数据目录、网络参数等。"""
+        """🚀 两步完成初始化：选 AI 模型 + 设置输出目录。"""
         _run_onboard()
 
     # ── config ────────────────────────────────────────────────────────────────
