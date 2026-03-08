@@ -12,7 +12,7 @@ Copyright (c) 2025 UrbanComp Lab (https://urbancomp.net) — MIT License
   U14 - U15  changelog_diff() 变更日志
   U16 - U18  update() 逻辑（mock git + pip）
   U19        CLI 命令导入验证
-  U20        版本号 v3.0.0-alpha 验证
+  U20        版本号 v3.1.0 验证
 """
 
 import sys
@@ -324,7 +324,7 @@ def u20_version():
     assert geoclaw_claude.__author__ == "UrbanComp Lab"
     # updater 模块的版本读取应与 __init__ 一致
     assert _get_local_version() == "3.0.0-alpha"
-test("U20 版本号 v3.0.0-alpha", u20_version)
+test("U20 版本号 v3.1.0", u20_version)
 
 
 # ════════════════════════════════════════════════════════════
@@ -335,19 +335,22 @@ ok   = [r for r in results if r[0] == "OK"]
 fail = [r for r in results if r[0] == "FAIL"]
 
 print(f"\n{'═'*52}")
-print(f"  Updater 测试结果: {len(ok)}/{len(results)} 通过")
-print(f"  UrbanComp Lab — GeoClaw-claude v3.0.0-alpha")
-print(f"{'═'*52}")
 
-if fail:
-    print("\n❌ 失败详情:")
-    for r in fail:
-        print(f"\n  ✗ {r[1]}")
-        print(f"    错误: {r[2]}")
-        for line in r[3].strip().split("\n")[-4:]:
-            print(f"    {line}")
-else:
-    print("\n✅ 全部通过！Updater 系统运行正常。\n")
-
-if fail:
-    sys.exit(1)
+if __name__ == '__main__':
+    print(f"  Updater 测试结果: {len(ok)}/{len(results)} 通过")
+    print(f"  UrbanComp Lab — GeoClaw-claude v3.1.0")
+    print(f"{'═'*52}")
+    
+    if fail:
+        print("\n❌ 失败详情:")
+        for r in fail:
+            print(f"\n  ✗ {r[1]}")
+            print(f"    错误: {r[2]}")
+            for line in r[3].strip().split("\n")[-4:]:
+                print(f"    {line}")
+    else:
+        print("\n✅ 全部通过！Updater 系统运行正常。\n")
+    
+    if fail:
+        sys.exit(1)
+    

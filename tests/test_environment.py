@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 PASS, FAIL, WARN = "✓", "✗", "⚠"
 results = []
 
-def test(name, fn):
+def _run(name, fn):
     try:
         fn()
         print(f"  {PASS} {name}")
@@ -28,25 +28,25 @@ print("=" * 60)
 
 # ─── 1. Library imports ───────────────────────────────────────────────────────
 print("\n[1] Library Imports")
-test("geopandas", lambda: __import__("geopandas"))
-test("shapely", lambda: __import__("shapely"))
-test("pyproj", lambda: __import__("pyproj"))
-test("numpy", lambda: __import__("numpy"))
-test("pandas", lambda: __import__("pandas"))
-test("matplotlib", lambda: __import__("matplotlib"))
-test("folium", lambda: __import__("folium"))
-test("rasterio", lambda: __import__("rasterio"))
-test("scipy", lambda: __import__("scipy"))
-test("networkx", lambda: __import__("networkx"))
+_run("geopandas", lambda: __import__("geopandas"))
+_run("shapely", lambda: __import__("shapely"))
+_run("pyproj", lambda: __import__("pyproj"))
+_run("numpy", lambda: __import__("numpy"))
+_run("pandas", lambda: __import__("pandas"))
+_run("matplotlib", lambda: __import__("matplotlib"))
+_run("folium", lambda: __import__("folium"))
+_run("rasterio", lambda: __import__("rasterio"))
+_run("scipy", lambda: __import__("scipy"))
+_run("networkx", lambda: __import__("networkx"))
 
 # ─── 2. GeoClaw module imports ────────────────────────────────────────────────
 print("\n[2] GeoClaw Modules")
-test("geoclaw_claude.__init__", lambda: __import__("geoclaw_claude"))
-test("geoclaw_claude.core.layer", lambda: __import__("geoclaw_claude.core.layer"))
-test("geoclaw_claude.core.project", lambda: __import__("geoclaw_claude.core.project"))
-test("geoclaw_claude.io.vector", lambda: __import__("geoclaw_claude.io.vector"))
-test("geoclaw_claude.analysis.spatial_ops", lambda: __import__("geoclaw_claude.analysis.spatial_ops"))
-test("geoclaw_claude.cartography.renderer", lambda: __import__("geoclaw_claude.cartography.renderer"))
+_run("geoclaw_claude.__init__", lambda: __import__("geoclaw_claude"))
+_run("geoclaw_claude.core.layer", lambda: __import__("geoclaw_claude.core.layer"))
+_run("geoclaw_claude.core.project", lambda: __import__("geoclaw_claude.core.project"))
+_run("geoclaw_claude.io.vector", lambda: __import__("geoclaw_claude.io.vector"))
+_run("geoclaw_claude.analysis.spatial_ops", lambda: __import__("geoclaw_claude.analysis.spatial_ops"))
+_run("geoclaw_claude.cartography.renderer", lambda: __import__("geoclaw_claude.cartography.renderer"))
 
 # ─── 3. Core functionality ────────────────────────────────────────────────────
 print("\n[3] Core GeoLayer")
@@ -88,10 +88,10 @@ def t_project():
     proj.add_geodataframe(gdf, "China Cities")
     assert "China Cities" in proj.list_layers()
 
-test("GeoLayer creation", t_layer_create)
-test("GeoLayer filter", t_layer_filter)
-test("GeoLayer reproject", t_layer_reproject)
-test("GeoClawProject", t_project)
+_run("GeoLayer creation", t_layer_create)
+_run("GeoLayer filter", t_layer_filter)
+_run("GeoLayer reproject", t_layer_reproject)
+_run("GeoClawProject", t_project)
 
 # ─── 4. Spatial analysis ─────────────────────────────────────────────────────
 print("\n[4] Spatial Analysis")
@@ -120,9 +120,9 @@ def t_nearest():
     result = nearest_neighbor(layer, layer)
     assert "nn_distance" in result.data.columns
 
-test("Buffer (50km)", t_buffer)
-test("Calculate area", t_area)
-test("Nearest neighbor", t_nearest)
+_run("Buffer (50km)", t_buffer)
+_run("Calculate area", t_area)
+_run("Nearest neighbor", t_nearest)
 
 # ─── 5. Cartography ──────────────────────────────────────────────────────────
 print("\n[5] Cartography")
@@ -149,8 +149,8 @@ def t_interactive_map():
     result = m.build()
     assert result is not None
 
-test("Static map (PNG)", t_static_map)
-test("Interactive map (Folium)", t_interactive_map)
+_run("Static map (PNG)", t_static_map)
+_run("Interactive map (Folium)", t_interactive_map)
 
 # ─── Summary ──────────────────────────────────────────────────────────────────
 passed = sum(1 for _, ok, _ in results if ok)

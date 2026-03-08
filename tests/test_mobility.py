@@ -10,7 +10,7 @@ M11 - M13  移动性指标计算
 M14 - M16  可视化函数
 M17 - M18  自然语言解析（移动性操作）
 M19        mobility_summary 完整性
-M20        版本号 v3.0.0-alpha
+M20        版本号 v3.1.0
 """
 import sys, traceback, warnings
 from pathlib import Path
@@ -341,7 +341,7 @@ def m20_version():
     import geoclaw_claude
     assert geoclaw_claude.__version__ == "3.0.0-alpha", \
         f"期望 3.0.0-alpha，实际 {geoclaw_claude.__version__}"
-test("M20 版本号 v3.0.0-alpha", m20_version)
+test("M20 版本号 v3.1.0", m20_version)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -352,16 +352,19 @@ ok   = [r for r in results if r[0] == "OK"]
 fail = [r for r in results if r[0] == "FAIL"]
 
 print(f"\n{'═'*54}")
-print(f"  移动性模块测试: {len(ok)}/{len(results)} 通过")
-print(f"  UrbanComp Lab — GeoClaw-claude v3.0.0-alpha")
-print(f"{'═'*54}")
 
-if fail:
-    print("\n❌ 失败详情:")
-    for r in fail:
-        print(f"  ✗ {r[1]}: {r[2]}")
-else:
-    print("\n✅ 全部通过！移动性分析模块（trackintel 集成）运行正常。\n")
-
-if fail:
-    sys.exit(1)
+if __name__ == '__main__':
+    print(f"  移动性模块测试: {len(ok)}/{len(results)} 通过")
+    print(f"  UrbanComp Lab — GeoClaw-claude v3.1.0")
+    print(f"{'═'*54}")
+    
+    if fail:
+        print("\n❌ 失败详情:")
+        for r in fail:
+            print(f"  ✗ {r[1]}: {r[2]}")
+    else:
+        print("\n✅ 全部通过！移动性分析模块（trackintel 集成）运行正常。\n")
+    
+    if fail:
+        sys.exit(1)
+    
