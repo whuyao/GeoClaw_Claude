@@ -210,7 +210,7 @@ results = updater.summarize_and_update(turns, llm_provider=None)
 ```bash
 # 1. 克隆并安装
 git clone https://github.com/whuyao/GeoClaw_Claude.git
-cd GeoClaw_Claude/geoclaw_claude_release && bash install.sh
+cd GeoClaw_Claude && bash install.sh
 
 # 2. 初始化（选 AI 模型 + 设置输出目录，两个问题）
 geoclaw-claude onboard
@@ -1236,9 +1236,9 @@ geoclaw-claude memory archive stats
 ```bash
 # 标准安装（推荐）
 git clone https://github.com/whuyao/GeoClaw_Claude.git
-cd GeoClaw_Claude/geoclaw_claude_release && bash install.sh
+cd GeoClaw_Claude && bash install.sh
 
-# 或开发模式
+# 或开发模式（代码修改即时生效）
 bash install.sh --dev
 
 # AI 模型 SDK（至少安装一个；使用 Ollama 则无需安装）
