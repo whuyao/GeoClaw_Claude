@@ -165,32 +165,62 @@ class NLProcessor:
     def __init__(
         self,
         api_key:   Optional[str] = None,
-        model:     str = "claude-sonnet-4-20250514",
+        model:     str = "",
         use_ai:    Optional[bool] = None,
         verbose:   bool = False,
+        provider:  Optional[str] = None,
     ):
         """
         Args:
-            api_key : Anthropic API Key（None 则从配置文件读取）
-            model   : 使用的 Claude 模型
-            use_ai  : True=强制AI, False=强制规则, None=自动选择（有key→AI）
+            api_key : API Key（None 则从配置文件读取）
+            model   : 使用的模型（空=自动，使用配置默认值）
+            use_ai  : True=强制AI, False=强制规则, None=自动选择
             verbose : 打印调试信息
+            provider: 指定 LLM provider（anthropic/openai/qwen，None=自动）
         """
-        self.model   = model
         self.verbose = verbose
 
-        # 解析 API Key
-        self._api_key = api_key or self._load_api_key()
+        # ── 初始化 LLM Provider ──────────────────────────────────────────
+        self._llm = None
 
-        # 决定模式
+        try:
+            from geoclaw_claude.nl.llm_provider import (
+                LLMProvider, ProviderConfig, DEFAULT_MODELS
+            )
+            if api_key:
+                _pname = provider or "anthropic"
+                _model = model or DEFAULT_MODELS.get(_pname, "")
+                cfg = ProviderConfig(provider=_pname, api_key=api_key, model=_model)
+                self._llm = LLMProvider(cfg, verbose=verbose)
+            else:
+                self._llm = LLMProvider.from_config(
+                    provider=provider, verbose=verbose
+                )
+        except Exception as e:
+            if verbose:
+                print(f"  [NLP] LLMProvider 初始化失败: {e}")
+
+        # 兼容旧版属性
+        self._api_key = ""
+        self.model = model or "claude-sonnet-4-20250514"
+        if self._llm is not None:
+            self.model = self._llm.model_name
+
+        # ── 工作模式 ────────────────────────────────────────────────────
         if use_ai is None:
-            self._use_ai = bool(self._api_key)
+            self._use_ai = self._llm is not None
         else:
             self._use_ai = use_ai
+            if not use_ai:
+                self._llm = None
 
         if self.verbose:
             mode = "AI模式" if self._use_ai else "规则模式"
-            print(f"  [NLP] 初始化完成，{mode}")
+            llm_info = (
+                f" [{self._llm.provider_name}/{self._llm.model_name}]"
+                if self._llm else ""
+            )
+            print(f"  [NLP] 初始化完成，{mode}{llm_info}")
 
     def _load_api_key(self) -> str:
         try:
@@ -241,12 +271,10 @@ class NLProcessor:
         text:    str,
         context: Optional[Dict[str, Any]] = None,
     ) -> ParsedIntent:
-        """调用 Claude API 解析意图。"""
-        try:
-            import anthropic
-        except ImportError:
+        """调用 LLM（Anthropic/OpenAI/Qwen）解析意图，附带上下文压缩。"""
+        if self._llm is None:
             if self.verbose:
-                print("  [NLP] anthropic 库未安装，降级到规则模式")
+                print("  [NLP] 无可用 LLM Provider，降级到规则模式")
             return self._parse_with_rules(text, context)
 
         # 构建用户消息，附带上下文
@@ -255,21 +283,38 @@ class NLProcessor:
             ctx_str = "\n".join(f"  - {k}: {v}" for k, v in context.items())
             user_msg = f"当前上下文:\n{ctx_str}\n\n用户指令: {text}"
 
+        # 上下文压缩（单轮解析只有一条消息，压缩主要用于多轮 agent）
+        messages = [{"role": "user", "content": user_msg}]
         try:
-            client = anthropic.Anthropic(api_key=self._api_key)
-            response = client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                system=_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_msg}],
+            from geoclaw_claude.nl.context_compress import compress_if_needed
+            from geoclaw_claude.config import Config
+            cfg = Config.load()
+            from geoclaw_claude.nl.context_compress import CompressConfig
+            cc = CompressConfig(
+                max_tokens=cfg.ctx_max_tokens,
+                target_tokens=cfg.ctx_target_tokens,
+                keep_recent=cfg.ctx_keep_recent,
             )
-            raw_json = response.content[0].text.strip()
+            messages, report = compress_if_needed(
+                messages, _SYSTEM_PROMPT, cc,
+                verbose=cfg.ctx_compress_verbose
+            )
+            if report.level_applied > 0 and self.verbose:
+                print(f"  [NLP] {report}")
+        except Exception:
+            pass  # 压缩失败不影响主流程
 
-            # 清理可能的 markdown 代码块
-            raw_json = re.sub(r"^```(?:json)?\s*", "", raw_json)
-            raw_json = re.sub(r"\s*```$", "", raw_json)
-
-            data = json.loads(raw_json)
+        try:
+            from geoclaw_claude.nl.llm_provider import parse_json_response
+            resp = self._llm.chat(messages=messages, system=_SYSTEM_PROMPT)
+            if resp is None:
+                raise RuntimeError("LLM 无响应")
+            data = parse_json_response(resp.content)
+            if data is None:
+                raise ValueError(f"JSON 解析失败: {resp.content[:200]}")
+            if self.verbose:
+                print(f"  [NLP] LLM({resp.provider}/{resp.model}) "
+                      f"in={resp.tokens_in} out={resp.tokens_out} tokens")
             return self._dict_to_intent(data)
 
         except Exception as e:

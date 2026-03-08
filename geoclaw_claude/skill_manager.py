@@ -314,15 +314,31 @@ class SkillManager:
 
         return mod.run(ctx)
 
-    def install(self, path: str) -> str:
+    def install(
+        self,
+        path: str,
+        skip_audit: bool = False,
+        auto_approve: bool = False,
+    ) -> str:
         """
         安装本地 skill 文件到 skill_dir。
 
+        安装前会自动执行安全审计（除非 skip_audit=True）：
+          · CRITICAL/HIGH 风险 → 强制要求用户输入 "yes" 确认
+          · MEDIUM 风险 → 提示后确认
+          · LOW/INFO → 自动通过
+
         Args:
-            path: .py 文件路径
+            path:         .py 文件路径
+            skip_audit:   跳过安全审计（不推荐，仅供测试用）
+            auto_approve: 非交互模式，HIGH/CRITICAL 默认拒绝（用于测试）
 
         Returns:
             安装后的 skill 名称
+
+        Raises:
+            PermissionError: 用户拒绝安装高危 skill
+            ValueError:      Skill META 不合规
         """
         src = Path(path).resolve()
         if not src.exists():
@@ -330,6 +346,26 @@ class SkillManager:
         if src.suffix != ".py":
             raise ValueError("Skill 必须是 .py 文件")
 
+        # ── 安全审计 ──────────────────────────────────────────────────────────
+        if not skip_audit:
+            from geoclaw_claude.skill_auditor import interactive_audit, SkillAuditor, RiskLevel
+            auditor = SkillAuditor()
+            result  = auditor.audit(str(src))
+
+            # META 不合规直接拒绝
+            if not result.meta_valid:
+                raise ValueError(
+                    f"Skill META 不合规: {'; '.join(result.meta_issues)}"
+                )
+
+            # 有风险条目 → 走交互确认
+            if result.findings:
+                approved = interactive_audit(str(src), auto_approve=auto_approve)
+                if not approved:
+                    raise PermissionError(
+                        f"Skill 安装已取消（风险分值: {result.risk_score}/100）"
+                    )
+        # ── 复制 & 注册 ───────────────────────────────────────────────────────
         self._skill_dir.mkdir(parents=True, exist_ok=True)
         dst = self._skill_dir / src.name
         shutil.copy2(src, dst)
@@ -338,6 +374,20 @@ class SkillManager:
         if name is None:
             raise RuntimeError("Skill 文件加载失败，请检查语法")
         return name
+
+    def audit(self, path: str) -> "AuditResult":  # type: ignore[name-defined]
+        """
+        仅执行安全审计，不安装。
+
+        Args:
+            path: Skill .py 文件路径
+
+        Returns:
+            AuditResult 对象
+        """
+        from geoclaw_claude.skill_auditor import SkillAuditor
+        auditor = SkillAuditor()
+        return auditor.audit(path)
 
     def create_template(self, name: str) -> str:
         """生成 skill 模板文件。"""

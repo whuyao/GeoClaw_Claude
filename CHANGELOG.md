@@ -4,6 +4,38 @@
 
 ---
 
+## v2.4.0 (2025-03)
+
+### 新增功能
+
+**Skill 体系全面升级**
+- `retail_site_ai`：商场选址 AI 驱动版 Skill（内置）。以 LLM 为核心分析引擎，Python 计算空间指标后交 LLM 综合评判，输出评分图层与中文分析报告
+- `retail_site_algo`：商场选址 MCDA 算法版 Skill（内置）。多准则决策分析（人口密度 / 竞争回避 / 空间分散 / 交通可达），完全离线可复现，支持权重自定义
+- `SKILL_WRITING_GUIDE.docx / .pdf`：Skill 编写规范与安全指南（8章，含完整代码模板）
+
+**SkillAuditor 安全审计模块**（`geoclaw_claude/skill_auditor.py`）
+- 基于 AST + 正则表达式的静态代码分析，不执行代码
+- 5 级风险分类：CRITICAL / HIGH / MEDIUM / LOW / INFO
+- 综合风险分值（0~100），彩色进度条可视化
+- 内置 25+ 条规则，覆盖：命令执行、代码注入、数据外泄、权限提升、危险文件操作、反序列化、代码混淆、危险模块导入等
+
+**SkillManager 安全集成**
+- `install()` 新增 `skip_audit` / `auto_approve` 参数
+- CRITICAL/HIGH 风险强制用户输入 "yes" 确认；默认拒绝高危 Skill
+- 新增 `audit()` 方法，支持仅审计不安装
+
+**CLI 扩展**
+- `skill audit <path>`：独立安全审计命令，退出码反映风险等级（CI/CD 友好）
+- `skill install --no-audit`：跳过审计选项（不推荐第三方使用）
+
+### 安全测试
+- `tests/malicious_skills/evil_exfil.py`：模拟命令执行+数据外泄（CRITICAL）
+- `tests/malicious_skills/evil_inject.py`：模拟代码注入+混淆（CRITICAL）
+- `tests/malicious_skills/evil_file_ops.py`：模拟危险文件操作（HIGH/CRITICAL）
+- `tests/test_skills_and_security.py`：40 个测试，全部通过（S01~S15, A01~A25）
+
+---
+
 ## v2.3.1 — 输出路径配置 & 文档全面更新
 
 ### 新增

@@ -389,15 +389,60 @@ def main():
 
     @skill.command("install")
     @click.argument("path")
-    def skill_install(path):
-        """安装本地 skill 文件或目录。\n\n示例: geoclaw-claude skill install ./my_skill.py"""
+    @click.option("--no-audit", is_flag=True, default=False,
+                  help="跳过安全审计（不推荐，仅用于可信的内置 skill）")
+    def skill_install(path, no_audit):
+        """安装本地 skill 文件（默认启用安全审计）。
+
+        \b
+        示例:
+          geoclaw-claude skill install ./my_skill.py
+          geoclaw-claude skill install ./my_skill.py --no-audit
+        """
         from geoclaw_claude.skill_manager import SkillManager
         sm = SkillManager()
         try:
-            name = sm.install(path)
+            name = sm.install(path, skip_audit=no_audit)
             _ok(f"Skill '{name}' 安装成功")
+        except PermissionError as e:
+            _warn(f"安装已取消: {e}")
+            sys.exit(2)
+        except ValueError as e:
+            _err(f"Skill 不合规: {e}")
+            sys.exit(1)
         except Exception as e:
             _err(f"安装失败: {e}")
+            sys.exit(1)
+
+    @skill.command("audit")
+    @click.argument("path")
+    @click.option("--verbose/--no-verbose", "-v", default=True,
+                  help="显示代码片段和修复建议")
+    def skill_audit(path, verbose):
+        """对 Skill 文件执行安全审计（不安装）。
+
+        \b
+        示例:
+          geoclaw-claude skill audit ./suspicious_skill.py
+          geoclaw-claude skill audit ./my_skill.py --no-verbose
+        """
+        from geoclaw_claude.skill_manager import SkillManager
+        from geoclaw_claude.skill_auditor import SkillAuditor, RiskLevel
+        sm      = SkillManager()
+        auditor = SkillAuditor()
+        try:
+            result = auditor.audit(path)
+            print(auditor.format_report(result, verbose=verbose))
+            # 退出码反映最高风险等级（便于 CI/CD 集成）
+            lvl = result.max_level
+            if lvl == RiskLevel.CRITICAL:
+                sys.exit(4)
+            elif lvl == RiskLevel.HIGH:
+                sys.exit(3)
+            elif lvl == RiskLevel.MEDIUM:
+                sys.exit(2)
+        except Exception as e:
+            _err(f"审计失败: {e}")
             sys.exit(1)
 
     @skill.command("new")
