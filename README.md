@@ -208,8 +208,9 @@ results = updater.summarize_and_update(turns, llm_provider=None)
 **三步上手：**
 
 ```bash
-# 1. 安装
-pip install geoclaw-claude
+# 1. 克隆并安装
+git clone https://github.com/whuyao/GeoClaw_Claude.git
+pip install -e GeoClaw_Claude/geoclaw_claude_release/
 
 # 2. 初始化（选 AI 模型 + 设置输出目录，两个问题）
 geoclaw-claude onboard
@@ -1233,12 +1234,12 @@ geoclaw-claude memory archive stats
 ## 安装与依赖
 
 ```bash
-# 推荐：一行安装（包含所有核心依赖）
-pip install geoclaw-claude
-
-# 开发者：从源码安装
+# 标准安装（推荐）
 git clone https://github.com/whuyao/GeoClaw_Claude.git
-pip install -e GeoClaw_Claude/geoclaw_claude_release/
+cd GeoClaw_Claude && bash install.sh
+
+# 或手动安装
+pip install -e geoclaw_claude_release/
 
 # AI 模型 SDK（至少安装一个；使用 Ollama 则无需安装）
 pip install anthropic          # Claude
@@ -1359,19 +1360,21 @@ geoclaw-claude self-check       # 完整健康检测报告
 
 ## 测试矩阵
 
-| 测试文件 | 项目数 | 运行方式 | 覆盖范围 |
-|---------|--------|---------|---------|
-| `test_sre_phase3.py` ✨ | 72 | pytest | Phase 3：uncertainty/analysis_mode/sensitivity/MAUP |
-| `test_sre_phase2.py` ✨ | 76 | pytest | Phase 2：template_library/primitive_resolver/llm_reasoner |
-| `test_sre_phase1.py` ✨ | 46 | pytest | Phase 1：schemas/task_typer/rule_engine/validator/synthesizer |
-| `test_profile.py` | 28 | pytest | soul.md / user.md ProfileManager |
-| `test_skills_and_security.py` | 40 | pytest | Skill 系统 + SkillAuditor 安全审计 |
-| `test_memory.py` | 37 | script | ShortTermMemory / LongTermMemory / MemoryArchive / VectorSearch |
-| `test_nl.py` | 20 | script | NLProcessor / NLExecutor / GeoAgent / 30+ 操作 |
-| `test_mobility.py` | 20 | script | GPS 层级生成 / 移动性指标 / 可视化 |
-| `test_updater.py` | 20 | script | VersionInfo.parse / check / update / self_check |
-| `test_v230_new.py` | 31 | script | Gemini · MemoryArchive · VectorSearch |
-| **合计** | **344** | — | **全部 ✅** |
+| 测试文件 | 项目数 | 覆盖范围 |
+|---------|--------|---------|
+| `test_sre_phase3.py` | 72 | SRE Phase 3：uncertainty/analysis_mode/sensitivity/MAUP |
+| `test_sre_phase2.py` | 76 | SRE Phase 2：template_library/primitive_resolver/llm_reasoner |
+| `test_sre_phase1.py` | 59 | SRE Phase 1：schemas/task_typer/rule_engine/validator/synthesizer |
+| `test_v310_new.py` ✨ | 30 | Ollama provider / ProfileUpdater / v3.1.0 集成 |
+| `test_skills_and_security.py` | 40 | Skill 系统 + SkillAuditor 安全审计 |
+| `test_v230_features.py` | 33 | 上下文压缩 / 多 Provider / SecurityGuard |
+| `test_v230_new.py` | 31 | Gemini · MemoryArchive · VectorSearch |
+| `test_memory.py` | 37 | ShortTermMemory / LongTermMemory / MemoryArchive / VectorSearch |
+| `test_profile.py` | 28 | soul.md / user.md ProfileManager |
+| `test_nl.py` | 20 | NLProcessor / NLExecutor / GeoAgent / 30+ 操作 |
+| `test_mobility.py` | 20 | GPS 层级生成 / 移动性指标 / 可视化 |
+| `test_updater.py` | 20 | VersionInfo.parse / check / update / self_check |
+| **合计** | **466** | **全部 ✅** |
 
 ---
 
@@ -1379,7 +1382,7 @@ geoclaw-claude self-check       # 完整健康检测报告
 
 | 版本 | 亮点 |
 |------|------|
-| **v3.0.0** 🆕 | SRE Phase 3：五维不确定性量化、AnalysisMode 识别、参数敏感性说明、MAUP 风险评估，344/344 测试全绿 |
+| **v3.0.0** 🆕 | SRE Phase 3：五维不确定性量化、AnalysisMode 识别、参数敏感性说明、MAUP 风险评估，466/466 测试全绿 |
 | **v2.5.0-alpha** | SRE Phase 1+2：rule_engine / template_library / llm_reasoner / reason_with_llm()，272/272 测试全绿 |
 | **v2.4.1** | soul.md / user.md 个性化配置层（ProfileManager），GeoAgent 深度集成，`geoclaw-claude profile` CLI 命令组 |
 | v2.4.0 | 商场选址 Skill 双模式案例（AI版+算法版），SkillAuditor 安全审计（25+ 规则） |
