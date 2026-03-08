@@ -878,7 +878,8 @@ geoclaw-claude memory archive stats
 | `utils/coord_transform` | WGS84 ↔ GCJ-02 ↔ BD-09 坐标互转（纯数学实现） |
 | `nl/processor` | NLProcessor：AI + 规则双模式意图解析 |
 | `nl/executor` | NLExecutor：ParsedIntent → GIS 执行 |
-| `nl/agent` | GeoAgent：多轮对话，自动压缩上下文 |
+| `nl/agent` | GeoAgent：多轮对话，融合 soul/user 个性化层 ✨ v2.4.1 |
+| `nl/profile_manager` | ProfileManager：soul.md 系统身份层 + user.md 用户画像层 ✨ v2.4.1 |
 | `nl/context_compress` | ContextCompressor：三级自动上下文压缩 |
 | `nl/llm_provider` | LLMProvider：Claude / Gemini / GPT / Qwen 统一适配 ✨ |
 | `memory/short_term` | ShortTermMemory：会话内操作日志 + 对象缓存 |
@@ -939,9 +940,10 @@ GeoClaw_Claude/
 │   ├── skill_auditor.py              # SkillAuditor：静态安全审计 ✨ v2.4.0
 │   ├── security.py                   # SecurityGuard：输出路径安全
 │   ├── nl/
-│   │   ├── processor.py              # NLProcessor：意图解析
+│   │   ├── processor.py              # NLProcessor：意图解析（融合 soul system prompt）
 │   │   ├── executor.py               # NLExecutor：GIS 执行
-│   │   ├── agent.py                  # GeoAgent：多轮对话 + 自动压缩
+│   │   ├── agent.py                  # GeoAgent：多轮对话 + soul/user 个性化 ✨ v2.4.1
+│   │   ├── profile_manager.py        # ProfileManager：soul.md / user.md 解析与加载 ✨ v2.4.1
 │   │   ├── context_compress.py       # ContextCompressor：三级压缩策略
 │   │   └── llm_provider.py           # LLMProvider：Claude/Gemini/GPT/Qwen ✨
 │   ├── analysis/
@@ -985,6 +987,8 @@ GeoClaw_Claude/
 │       ├── evil_inject.py            #   代码注入+混淆（CRITICAL）
 │       └── evil_file_ops.py          #   危险文件操作（HIGH/CRITICAL）
 ├── docs/
+│   ├── GeoClaw-claude_User_Guide_v2.4.1.docx / .pdf       ✨ v2.4.1
+│   ├── GeoClaw-claude_Technical_Reference_v2.4.1.docx / .pdf  ✨ v2.4.1
 │   ├── GeoClaw-claude_User_Guide_v2.3.0.docx / .pdf
 │   ├── GeoClaw-claude_Technical_Reference_v2.3.0.docx / .pdf
 │   └── SKILL_WRITING_GUIDE.docx / .pdf  ✨ v2.4.0
@@ -1022,7 +1026,8 @@ geoclaw-claude self-check       # 完整健康检测报告
 
 | 版本 | 亮点 |
 |------|------|
-| **v2.4.0** ✨ | 商场选址 Skill 双模式案例（AI版+算法版），SkillAuditor 安全审计，Skill 编写规范文档，196/196 测试全绿 |
+| **v2.4.1** ✨ | soul.md / user.md 个性化配置层（ProfileManager），GeoAgent 深度集成，`geoclaw-claude profile` CLI 命令组，196/196 测试全绿 |
+| **v2.4.0** | 商场选址 Skill 双模式案例（AI版+算法版），SkillAuditor 安全审计（25+ 规则），Skill 编写规范文档，168/168 测试全绿 |
 | v2.3.0 | Google Gemini API，MemoryArchive 会话存档，VectorSearch 向量检索，onboard 多模型 6 步向导，上下文压缩自动集成 |
 | v2.2.1 | README 重组，NL 关键词映射修复，97/97 测试全绿 |
 | v2.2.0 | 武汉 GPS 轨迹 Demo 数据集（37,549 点），完整 Demo 脚本，trackintel 来源声明 |
