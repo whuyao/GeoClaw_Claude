@@ -35,7 +35,7 @@
   - [记忆存档系统](#2-记忆存档系统memoryarchive)
   - [向量语义检索](#3-向量语义检索vectorsearch)
   - [自动上下文压缩](#4-自动上下文压缩)
-  - [Onboard 多模型向导](#5-onboard-多模型配置向导)
+  - [Onboard 初始化向导](#5-onboard-多模型配置向导)
 - [Skill 系统](#skill-系统)
 - [自然语言操作系统](#自然语言操作系统)
 - [人类移动性分析](#人类移动性分析)
@@ -67,7 +67,7 @@ ollama pull llama4:scout    # Meta LLaMA 4（2025，原生多模态 MoE）
 ollama pull deepseek-r1:7b  # DeepSeek R1（推理链条强，适合 SRE 分析）
 ollama pull gemma3:12b      # Google Gemma 3（轻量多模态，128K 上下文）
 
-# 4. 配置 GeoClaw 使用 Ollama
+# 4. 配置 GeoClaw 使用 Ollama（两步向导）
 geoclaw-claude onboard
 # 或直接编辑 ~/.geoclaw_claude/config.json:
 # { "llm_provider": "ollama", "ollama_model": "qwen3:8b" }
@@ -205,35 +205,33 @@ results = updater.summarize_and_update(turns, llm_provider=None)
 
 ## 快速开始
 
-```bash
-git clone https://github.com/whuyao/GeoClaw_Claude.git
-cd GeoClaw_Claude && bash install.sh
+**三步上手：**
 
-# 交互式初始化向导（配置所有模型 API Key、目录、压缩参数等）
+```bash
+# 1. 安装
+pip install geoclaw-claude
+
+# 2. 初始化（选 AI 模型 + 设置输出目录，两个问题）
 geoclaw-claude onboard
 
-# 自然语言 GIS 分析
-geoclaw-claude ask "下载武汉市医院数据，做1公里缓冲区，用交互地图显示"
+# 3. 开始分析
+geoclaw-claude ask "下载武汉市医院数据，做 1 公里缓冲区，用交互地图显示"
+```
 
-# 人类移动性分析
-geoclaw-claude ask "读入 data/mobility/wuhan_gps_tracks.csv"
-geoclaw-claude ask "一键完成移动性分析"
-geoclaw-claude ask "轨迹地图"
+更多用法：
 
-# Skill：商场选址分析（算法版，无需 API Key）
-geoclaw-claude skill run retail_site_algo --data candidates.geojson --radius_km=2.0 --top_n=3
+```bash
+# 多轮对话模式
+geoclaw-claude chat
 
-# Skill：商场选址分析（AI 驱动版，需配置 API Key）
-geoclaw-claude skill run retail_site_ai --data candidates.geojson --ai --top_n=3
+# 运行内置 Skill（无需 API Key）
+geoclaw-claude skill run retail_site_algo --data candidates.geojson --top_n=3
 
-# Skill 安全审计（安装前扫描）
-geoclaw-claude skill audit ./my_skill.py
-
-# 列出所有已安装 Skill
-geoclaw-claude skill list
-
-# 向量语义搜索历史记忆
+# 搜索历史记忆
 geoclaw-claude memory vsearch "武汉医院空间分析"
+
+# 高级配置（代理、DPI、日志级别等）
+geoclaw-claude config
 ```
 
 ---
@@ -370,7 +368,8 @@ v3.1.0 提供两份精简文档，覆盖技术架构与上手实践：
 
 | 文档 | 页数 | 适用对象 | 下载 |
 |------|------|----------|------|
-| **User Guide** | 10 页 | 零基础用户、城市规划师、GIS 从业者 | 📄 [PDF](docs/GeoClaw-claude_User_Guide_v3.1.0.pdf)  ·  [DOCX](docs/GeoClaw-claude_User_Guide_v3.1.0.docx) |
+| **新手入门指南** | 5 页 | 零基础用户，10 分钟上手 | 📄 [PDF](docs/GeoClaw-claude_Beginner_Guide_v3.1.0.pdf)  ·  [DOCX](docs/GeoClaw-claude_Beginner_Guide_v3.1.0.docx) |
+| **User Guide** | 10 页 | 城市规划师、GIS 从业者 | 📄 [PDF](docs/GeoClaw-claude_User_Guide_v3.1.0.pdf)  ·  [DOCX](docs/GeoClaw-claude_User_Guide_v3.1.0.docx) |
 | **Technical Reference** | 9 页 | 开发者、研究人员 | 📄 [PDF](docs/GeoClaw-claude_Technical_Reference_v3.1.0.pdf)  ·  [DOCX](docs/GeoClaw-claude_Technical_Reference_v3.1.0.docx) |
 
 **User Guide** 涵盖：安装配置 / 自然语言指令大全 / Ollama 本地部署 / Skill 开发 / 记忆系统 / 常见问题
@@ -1234,17 +1233,24 @@ geoclaw-claude memory archive stats
 ## 安装与依赖
 
 ```bash
-# 核心依赖
-pip install geopandas osmnx rasterio trackintel scipy matplotlib folium click
+# 推荐：一行安装（包含所有核心依赖）
+pip install geoclaw-claude
 
-# AI 模型（至少安装一个以启用 NL AI 模式，留空则使用离线规则模式）
+# 开发者：从源码安装
+git clone https://github.com/whuyao/GeoClaw_Claude.git
+pip install -e GeoClaw_Claude/geoclaw_claude_release/
+
+# AI 模型 SDK（至少安装一个；使用 Ollama 则无需安装）
 pip install anthropic          # Claude
-pip install google-genai       # Gemini ✨
+pip install google-genai       # Gemini
 pip install openai             # GPT / Qwen（共用同一个包）
 
 # 可选增强
-pip install sentence-transformers   # 神经网络向量检索（替代默认 TF-IDF）✨
+pip install sentence-transformers   # 神经网络向量检索（替代默认 TF-IDF）
 ```
+
+安装后运行 `geoclaw-claude onboard` 完成两步初始化（选 AI 模型 + 输出目录）。  
+高级配置（代理、DPI、缓存、日志等）可通过 `geoclaw-claude config` 随时修改。
 
 | 包 | 用途 | 类型 |
 |----|------|------|
@@ -1324,6 +1330,7 @@ GeoClaw_Claude/
 │       ├── evil_inject.py            #   代码注入+混淆（CRITICAL）
 │       └── evil_file_ops.py          #   危险文件操作（HIGH/CRITICAL）
 ├── docs/
+│   ├── GeoClaw-claude_Beginner_Guide_v3.1.0.docx / .pdf    # 新手入门指南（5 页）✨ v3.1.0
 │   ├── GeoClaw-claude_User_Guide_v3.1.0.docx / .pdf        # 用户手册（10 页）✨ v3.1.0
 │   ├── GeoClaw-claude_Technical_Reference_v3.1.0.docx / .pdf  # 技术参考（9 页）✨ v3.1.0
 │   ├── GeoClaw-claude_User_Guide_v3.0.0.docx / .pdf       ✨ v3.0.0
