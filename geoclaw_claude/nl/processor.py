@@ -280,8 +280,24 @@ class NLProcessor:
         # 构建用户消息，附带上下文
         user_msg = text
         if context:
-            ctx_str = "\n".join(f"  - {k}: {v}" for k, v in context.items())
-            user_msg = f"当前上下文:\n{ctx_str}\n\n用户指令: {text}"
+            # soul / user 配置单独提取，其余作为普通上下文
+            soul_prompt = context.pop("soul_system_prompt", None)
+            user_hint   = context.pop("user_profile_hint", None)
+
+            ctx_items = {k: v for k, v in context.items()}
+            if user_hint:
+                ctx_items["user_profile"] = user_hint
+
+            ctx_str = "\n".join(f"  - {k}: {v}" for k, v in ctx_items.items())
+            user_msg = f"当前上下文:\n{ctx_str}\n\n用户指令: {text}" if ctx_str else text
+
+            # 将 soul system prompt 合并进系统提示词（行为边界，高优先级）
+            effective_system = _SYSTEM_PROMPT
+            if soul_prompt:
+                effective_system = soul_prompt + "\n\n" + _SYSTEM_PROMPT
+        else:
+            soul_prompt = None
+            effective_system = _SYSTEM_PROMPT
 
         # 上下文压缩（单轮解析只有一条消息，压缩主要用于多轮 agent）
         messages = [{"role": "user", "content": user_msg}]
@@ -296,7 +312,7 @@ class NLProcessor:
                 keep_recent=cfg.ctx_keep_recent,
             )
             messages, report = compress_if_needed(
-                messages, _SYSTEM_PROMPT, cc,
+                messages, effective_system, cc,
                 verbose=cfg.ctx_compress_verbose
             )
             if report.level_applied > 0 and self.verbose:
@@ -306,7 +322,7 @@ class NLProcessor:
 
         try:
             from geoclaw_claude.nl.llm_provider import parse_json_response
-            resp = self._llm.chat(messages=messages, system=_SYSTEM_PROMPT)
+            resp = self._llm.chat(messages=messages, system=effective_system)
             if resp is None:
                 raise RuntimeError("LLM 无响应")
             data = parse_json_response(resp.content)

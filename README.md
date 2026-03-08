@@ -3,7 +3,7 @@
 > **UrbanComp Lab** 出品的轻量级 Python 城市地理信息分析工具集
 > https://urbancomp.net
 
-[![Version](https://img.shields.io/badge/version-2.4.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.4.1-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-168%2F168-brightgreen)](#测试矩阵)
@@ -13,13 +13,14 @@
 
 参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。核心理念是用**自然语言**直接驱动 GIS 操作：一句话完成从数据加载、空间分析到制图输出的完整流水线。
 
-**v2.4.0 重点更新：** 新增商场选址 Skill 双模式案例（AI 驱动版 + MCDA 算法版）、Skill 安全审计系统（SkillAuditor，AST+正则静态分析，5 级风险分类）、Skill 编写规范与安全指南文档。
+**v2.4.1 重点更新：** 新增 soul.md / user.md 个性化配置层（ProfileManager）——soul.md 定义系统身份与行为边界，user.md 持久化用户画像与长期偏好；GeoAgent 深度集成，欢迎语、system prompt、context hint 均由 profile 层生成；新增 `geoclaw-claude profile` CLI 命令组。
 
 ---
 
 ## 目录
 
 - [快速开始](#快速开始)
+- [v2.4.1 新特性](#v241-新特性)
 - [v2.4.0 新特性](#v240-新特性)
   - [商场选址 Skill 案例](#1-商场选址-skill-案例两种实现)
   - [Skill 安全审计系统](#2-skill-安全审计系统)
@@ -74,6 +75,73 @@ geoclaw-claude skill list
 
 # 向量语义搜索历史记忆
 geoclaw-claude memory vsearch "武汉医院空间分析"
+```
+
+---
+
+## v2.4.1 新特性
+
+### soul.md / user.md 个性化配置层
+
+v2.4.1 为 GeoAgent 引入双层个性化配置系统，让每个 GeoClaw 实例真正拥有"自我认知"与"用户感知"。
+
+**soul.md — 系统自我定义与行为边界**（`~/.geoclaw_claude/soul.md`）
+
+定义 GeoClaw 的系统身份、使命、核心原则、空间推理规范、执行层级偏好、数据安全规则和输出标准。全局生效，优先级高于用户偏好，作为 LLM system prompt 的最高优先级前缀注入。
+
+**user.md — 用户画像与长期偏好**（`~/.geoclaw_claude/user.md`）
+
+持久化存储用户角色、语言偏好、通讯风格、技术水平、工具偏好、输出格式期望等。会话初始化时加载，作为软个性化层注入 LLM context hint，影响规划、回复和工具选择，不覆盖 soul 行为边界。
+
+**两个文件均在首次运行时自动写入 `~/.geoclaw_claude/` 目录，可直接编辑自定义。**
+
+```bash
+# 查看 profile 配置摘要
+geoclaw-claude profile status
+
+# 显示 soul.md / user.md 内容
+geoclaw-claude profile show soul
+geoclaw-claude profile show user
+
+# 用系统编辑器修改
+geoclaw-claude profile edit user
+
+# 预览生成的 LLM system prompt
+geoclaw-claude profile prompt
+
+# 重置为默认内容
+geoclaw-claude profile reset all
+```
+
+**`ProfileManager` 核心 API：**
+
+| 方法 | 说明 |
+|------|------|
+| `ProfileManager().load()` | 加载并解析两个配置文件 |
+| `.build_system_prompt()` | 生成 soul 行为边界 system prompt 片段 |
+| `.build_context_hint()` | 生成 user 偏好 context hint |
+| `.build_welcome_message()` | 生成个性化欢迎语 |
+| `.reload()` | 运行时热更新（重新读取文件） |
+| `.summary()` | 返回配置摘要字典 |
+
+**GeoAgent 集成方式：**
+
+```python
+from geoclaw_claude.nl.agent import GeoAgent
+
+# 默认加载 ~/.geoclaw_claude/soul.md 和 user.md
+agent = GeoAgent(use_ai=True)
+
+# 自定义 profile 路径
+agent = GeoAgent(
+    use_ai=True,
+    soul_path="/path/to/my_soul.md",
+    user_path="/path/to/my_user.md",
+)
+
+# 查看 profile 状态
+s = agent.status()
+print(s["soul_loaded"], s["user_role"], s["user_lang"])
 ```
 
 ---
@@ -910,6 +978,7 @@ GeoClaw_Claude/
 │   ├── test_nl.py              (20)
 │   ├── test_mobility.py        (20)
 │   ├── test_v230_new.py        (31)  ← G01-G10 Gemini · A01-A10 Archive · V01-V10 VectorSearch
+│   ├── test_profile.py (28)           ← P01-P08 soul解析 · U01-U08 user解析 · M01-M07 ProfileManager · A01-A05 Agent集成 ✨ v2.4.1
 │   ├── test_skills_and_security.py (40) ← S01-S15 Skill功能 · A01-A25 安全审计 ✨ v2.4.0
 │   └── malicious_skills/             # 高危 Skill 模拟文件（安全测试用）✨ v2.4.0
 │       ├── evil_exfil.py             #   命令执行+数据外泄（CRITICAL）
@@ -953,7 +1022,7 @@ geoclaw-claude self-check       # 完整健康检测报告
 
 | 版本 | 亮点 |
 |------|------|
-| **v2.4.0** ✨ | 商场选址 Skill 双模式案例（AI版+算法版），SkillAuditor 安全审计，Skill 编写规范文档，168/168 测试全绿 |
+| **v2.4.0** ✨ | 商场选址 Skill 双模式案例（AI版+算法版），SkillAuditor 安全审计，Skill 编写规范文档，196/196 测试全绿 |
 | v2.3.0 | Google Gemini API，MemoryArchive 会话存档，VectorSearch 向量检索，onboard 多模型 6 步向导，上下文压缩自动集成 |
 | v2.2.1 | README 重组，NL 关键词映射修复，97/97 测试全绿 |
 | v2.2.0 | 武汉 GPS 轨迹 Demo 数据集（37,549 点），完整 Demo 脚本，trackintel 来源声明 |

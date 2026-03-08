@@ -12,7 +12,7 @@ Copyright (c) 2025 UrbanComp Lab (https://urbancomp.net) — MIT License
   U14 - U15  changelog_diff() 变更日志
   U16 - U18  update() 逻辑（mock git + pip）
   U19        CLI 命令导入验证
-  U20        版本号 v2.3.0 验证
+  U20        版本号 v2.4.1 验证
 """
 
 import sys
@@ -319,12 +319,12 @@ test("U19 CLI 命令注册", u19_cli_commands)
 
 def u20_version():
     import geoclaw_claude
-    assert geoclaw_claude.__version__ == "2.3.0", \
-        f"期望 2.3.0，实际 {geoclaw_claude.__version__}"
+    assert geoclaw_claude.__version__ == "2.4.1", \
+        f"期望 2.4.1，实际 {geoclaw_claude.__version__}"
     assert geoclaw_claude.__author__ == "UrbanComp Lab"
     # updater 模块的版本读取应与 __init__ 一致
-    assert _get_local_version() == "2.3.0"
-test("U20 版本号 v2.3.0", u20_version)
+    assert _get_local_version() == "2.4.1"
+test("U20 版本号 v2.4.1", u20_version)
 
 
 # ════════════════════════════════════════════════════════════
@@ -336,7 +336,7 @@ fail = [r for r in results if r[0] == "FAIL"]
 
 print(f"\n{'═'*52}")
 print(f"  Updater 测试结果: {len(ok)}/{len(results)} 通过")
-print(f"  UrbanComp Lab — GeoClaw-claude v2.3.0")
+print(f"  UrbanComp Lab — GeoClaw-claude v2.4.1")
 print(f"{'═'*52}")
 
 if fail:

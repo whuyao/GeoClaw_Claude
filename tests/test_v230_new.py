@@ -442,8 +442,8 @@ print("\n─ 版本验证 ─")
 
 def x01_version():
     import geoclaw_claude
-    assert geoclaw_claude.__version__ == "2.3.0", \
-        f"期望 2.3.0，实际 {geoclaw_claude.__version__}"
+    assert geoclaw_claude.__version__ == "2.4.1", \
+        f"期望 2.4.1，实际 {geoclaw_claude.__version__}"
 test("X01 版本号 v2.3.0", x01_version)
 
 # ══════════════════════════════════════════════════════════════

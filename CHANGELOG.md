@@ -4,6 +4,41 @@
 
 ---
 
+## v2.4.1 (2025-03)
+
+### 新增功能
+
+**soul.md / user.md 个性化配置层**（`geoclaw_claude/nl/profile_manager.py`）
+- `soul.md`：系统自我定义与行为边界层。定义 GeoClaw 的系统身份、使命、核心原则、空间推理规范、执行层级偏好、数据安全规则和输出标准；全局生效，优先级高于用户偏好
+- `user.md`：用户画像与长期偏好层。持久化存储用户角色、语言偏好、通讯风格、技术水平、工具偏好、输出格式期望等；会话初始化时加载，作为软个性化层影响规划、回复和工具选择
+- `ProfileManager`：统一管理两个配置文件的加载、解析、热更新，自动创建默认文件
+- 两套配置首次使用时自动写入 `~/.geoclaw_claude/` 目录
+
+**GeoAgent 深度集成**（`geoclaw_claude/nl/agent.py`）
+- `__init__` 新增 `soul_path` / `user_path` 参数，支持自定义路径
+- 欢迎语由 `ProfileManager.build_welcome_message()` 生成，融合用户角色/语言偏好
+- `_build_context()` 自动注入 soul system prompt（行为边界）和 user 偏好提示
+- `status()` 新增 `soul_loaded` / `user_loaded` / `user_role` / `user_lang` 字段
+
+**NLProcessor 系统提示词融合**（`geoclaw_claude/nl/processor.py`）
+- `_parse_with_ai()` 自动将 soul.md 内容合并进 LLM system prompt，user.md 偏好注入 context
+- soul system prompt 作为最高优先级前缀注入（行为边界不被用户配置覆盖）
+
+**`geoclaw-claude profile` CLI 命令组**（`geoclaw_claude/cli.py`）
+- `profile status`：查看当前 soul/user 配置摘要
+- `profile show [soul|user|all]`：显示配置文件原始内容
+- `profile edit [soul|user]`：用系统编辑器打开配置文件
+- `profile reset [soul|user|all]`：重置为内置默认内容
+- `profile prompt`：预览生成的 LLM system prompt 和 context hint
+
+### 测试
+- `tests/test_profile.py`：23 项覆盖 soul/user 解析、ProfileManager 加载、系统提示词生成、GeoAgent 集成、CLI 命令
+
+### 文档
+- 用户手册 / 技术参考手册 / SKILL_WRITING_GUIDE 均更新至 v2.4.1
+
+---
+
 ## v2.4.0 (2025-03)
 
 ### 新增功能

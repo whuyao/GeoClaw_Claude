@@ -628,8 +628,8 @@ test("T36 完整工作流集成测试", t36_full_workflow)
 
 def t37_version():
     import geoclaw_claude
-    assert geoclaw_claude.__version__ == "2.3.0", \
-        f"期望 2.3.0，实际 {geoclaw_claude.__version__}"
+    assert geoclaw_claude.__version__ == "2.4.1", \
+        f"期望 2.4.1，实际 {geoclaw_claude.__version__}"
     assert geoclaw_claude.__author__ == "UrbanComp Lab"
 test("T37 版本号 v2.3.0", t37_version)
 

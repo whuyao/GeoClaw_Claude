@@ -791,6 +791,126 @@ def main():
                 print(f"       {r.snippet[:100]}")
         print()
 
+    # ── profile ─────────────────────────────────────────────────────────────────
+    @cli.group()
+    def profile():
+        """👤 管理 soul.md / user.md 个性化配置层。
+
+        \b
+        soul.md：系统自我定义与行为边界（~/.geoclaw_claude/soul.md）
+        user.md：用户画像与长期偏好（~/.geoclaw_claude/user.md）
+        """
+
+    @profile.command("status")
+    def profile_status():
+        """📋 查看当前 soul/user 配置摘要。"""
+        from geoclaw_claude.nl.profile_manager import ProfileManager
+        pm = ProfileManager().load()
+        s = pm.summary()
+        click.echo("\n  ── Profile 配置摘要 " + "─" * 36)
+        click.echo(f"  soul.md  路径  : {s['soul_path']}")
+        click.echo(f"  soul.md  加载  : {'✅' if s['soul_loaded'] else '❌'}")
+        click.echo(f"  soul 身份摘要  : {s['soul_identity']}")
+        click.echo(f"  soul 原则数量  : {s['soul_principles']} 条")
+        click.echo(f"  user.md  路径  : {s['user_path']}")
+        click.echo(f"  user.md  加载  : {'✅' if s['user_loaded'] else '❌'}")
+        click.echo(f"  用户角色       : {s['user_role']}")
+        click.echo(f"  语言偏好       : {s['user_lang']}")
+        click.echo(f"  通讯风格       : {s['user_style']}")
+        if s['user_tools']:
+            click.echo(f"  偏好工具       : {', '.join(s['user_tools'])}")
+        click.echo("  " + "─" * 52)
+
+    @profile.command("show")
+    @click.argument("target", type=click.Choice(["soul", "user", "all"]),
+                    default="all")
+    def profile_show(target):
+        """📄 显示 soul.md 或 user.md 内容。
+
+        \b
+        示例:
+          geoclaw-claude profile show soul
+          geoclaw-claude profile show user
+          geoclaw-claude profile show all
+        """
+        from geoclaw_claude.nl.profile_manager import (
+            ProfileManager, DEFAULT_SOUL_PATH, DEFAULT_USER_PATH
+        )
+        pm = ProfileManager().load()
+        if target in ("soul", "all"):
+            click.echo(f"\n{'═'*60}")
+            click.echo(f"  📄 soul.md  ({DEFAULT_SOUL_PATH})")
+            click.echo(f"{'═'*60}")
+            click.echo(pm._soul_raw)
+        if target in ("user", "all"):
+            click.echo(f"\n{'═'*60}")
+            click.echo(f"  📄 user.md  ({DEFAULT_USER_PATH})")
+            click.echo(f"{'═'*60}")
+            click.echo(pm._user_raw)
+
+    @profile.command("edit")
+    @click.argument("target", type=click.Choice(["soul", "user"]))
+    def profile_edit(target):
+        """✏️  用系统默认编辑器打开 soul.md 或 user.md。
+
+        \b
+        示例:
+          geoclaw-claude profile edit soul
+          geoclaw-claude profile edit user
+        """
+        from geoclaw_claude.nl.profile_manager import (
+            DEFAULT_SOUL_PATH, DEFAULT_USER_PATH, DEFAULT_SOUL_MD, DEFAULT_USER_MD
+        )
+        import subprocess, os
+        path = DEFAULT_SOUL_PATH if target == "soul" else DEFAULT_USER_PATH
+        default_content = DEFAULT_SOUL_MD if target == "soul" else DEFAULT_USER_MD
+        # 确保文件存在
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(default_content, encoding="utf-8")
+            click.echo(f"  ✅ 已创建默认 {target}.md: {path}")
+        editor = os.environ.get("EDITOR", os.environ.get("VISUAL", "nano"))
+        click.echo(f"  📝 打开编辑器: {editor} {path}")
+        subprocess.call([editor, str(path)])
+
+    @profile.command("reset")
+    @click.argument("target", type=click.Choice(["soul", "user", "all"]))
+    @click.confirmation_option(prompt="⚠️  确认重置为默认内容？已有修改将丢失")
+    def profile_reset(target):
+        """🔄 重置 soul.md / user.md 为内置默认内容。
+
+        \b
+        示例:
+          geoclaw-claude profile reset soul
+          geoclaw-claude profile reset user
+          geoclaw-claude profile reset all
+        """
+        from geoclaw_claude.nl.profile_manager import (
+            DEFAULT_SOUL_PATH, DEFAULT_USER_PATH,
+            DEFAULT_SOUL_MD, DEFAULT_USER_MD
+        )
+        if target in ("soul", "all"):
+            DEFAULT_SOUL_PATH.parent.mkdir(parents=True, exist_ok=True)
+            DEFAULT_SOUL_PATH.write_text(DEFAULT_SOUL_MD, encoding="utf-8")
+            click.echo(f"  ✅ soul.md 已重置: {DEFAULT_SOUL_PATH}")
+        if target in ("user", "all"):
+            DEFAULT_USER_PATH.parent.mkdir(parents=True, exist_ok=True)
+            DEFAULT_USER_PATH.write_text(DEFAULT_USER_MD, encoding="utf-8")
+            click.echo(f"  ✅ user.md 已重置: {DEFAULT_USER_PATH}")
+
+    @profile.command("prompt")
+    def profile_prompt():
+        """🔍 预览当前 soul+user 配置生成的 LLM system prompt 片段。"""
+        from geoclaw_claude.nl.profile_manager import ProfileManager
+        pm = ProfileManager().load()
+        click.echo("\n  ── Soul System Prompt " + "─" * 36)
+        click.echo(pm.build_system_prompt())
+        click.echo("\n  ── User Context Hint " + "─" * 37)
+        click.echo(pm.build_context_hint())
+        click.echo("\n  ── 欢迎语预览 " + "─" * 44)
+        click.echo(pm.build_welcome_message(mode="AI"))
+        click.echo()
+
     # ── check ──────────────────────────────────────────────────────────────────
     @cli.command()
     @click.option("--json", "as_json", is_flag=True, default=False,

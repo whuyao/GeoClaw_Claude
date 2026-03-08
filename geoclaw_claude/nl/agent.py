@@ -21,9 +21,11 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from geoclaw_claude.nl.processor import NLProcessor, ParsedIntent
 from geoclaw_claude.nl.executor  import NLExecutor, ExecutionResult
+from geoclaw_claude.nl.profile_manager import ProfileManager
 
 
 # ── 对话消息 ──────────────────────────────────────────────────────────────────
@@ -73,6 +75,8 @@ class GeoAgent:
         verbose:    bool = False,
         session_id: Optional[str] = None,
         output_dir: Optional[str] = None,
+        soul_path:  Optional[str] = None,
+        user_path:  Optional[str] = None,
     ):
         """
         Args:
@@ -81,7 +85,16 @@ class GeoAgent:
             verbose   : 打印调试信息
             session_id: 记忆会话 ID
             output_dir: 覆盖默认输出目录；None 则使用 config.output_dir
+            soul_path : soul.md 路径；None 则使用 ~/.geoclaw_claude/soul.md
+            user_path : user.md 路径；None 则使用 ~/.geoclaw_claude/user.md
         """
+        # ── 加载 soul.md / user.md 个性化配置层 ──────────────────────────────
+        self.profile = ProfileManager(
+            soul_path=Path(soul_path) if soul_path else None,
+            user_path=Path(user_path) if user_path else None,
+            auto_create=True,
+        ).load()
+
         self._proc = NLProcessor(api_key=api_key, use_ai=use_ai, verbose=verbose)
         self._exec = NLExecutor(memory_session=session_id, verbose=verbose,
                                 output_dir=output_dir)
@@ -90,14 +103,9 @@ class GeoAgent:
         self.verbose = verbose
 
         mode = "AI" if self._proc._use_ai else "规则"
-        self._add_agent_msg(
-            f"GeoClaw-claude 自然语言 GIS 助手已启动（{mode}模式）。\n"
-            f"请直接用自然语言描述你想做的 GIS 操作，例如：\n"
-            f"  · 加载 hospitals.geojson\n"
-            f"  · 对医院做1公里缓冲区\n"
-            f"  · 下载武汉市公园数据并可视化\n"
-            f"  · 帮助"
-        )
+        # 使用 ProfileManager 生成个性化欢迎语
+        welcome = self.profile.build_welcome_message(mode=mode)
+        self._add_agent_msg(welcome)
 
     # ── 主对话入口 ────────────────────────────────────────────────────────────
 
@@ -214,7 +222,7 @@ class GeoAgent:
         return "\n".join(lines)
 
     def _build_context(self) -> Dict[str, Any]:
-        """构建传给解析器的上下文（含上下文压缩）。"""
+        """构建传给解析器的上下文（含上下文压缩 + soul/user 个性化）。"""
         ctx: Dict[str, Any] = {}
         layers = self._exec.list_layers()
         if layers:
@@ -222,6 +230,16 @@ class GeoAgent:
         last = self._exec.last_result
         if last is not None and hasattr(last, "name"):
             ctx["last_layer"] = last.name
+
+        # ── 注入 soul.md 系统提示（行为边界，高优先级）───────────────────────
+        soul_prompt = self.profile.build_system_prompt()
+        if soul_prompt:
+            ctx["soul_system_prompt"] = soul_prompt
+
+        # ── 注入 user.md 偏好提示（软个性化，不覆盖 soul 边界）─────────────
+        user_hint = self.profile.build_context_hint()
+        if user_hint:
+            ctx["user_profile_hint"] = user_hint
 
         # 构建对话消息列表并压缩
         messages = self._history_to_messages()
@@ -303,14 +321,19 @@ class GeoAgent:
 
     def status(self) -> dict:
         """返回代理当前状态。"""
-        return {
+        s = {
             "mode":            "AI" if self._proc._use_ai else "规则",
             "turns":           len([m for m in self._history if m.role == "user"]),
             "layers":          self._exec.list_layers(),
             "ops_success":     sum(1 for r in self._exec.history if r.success),
             "ops_total":       len(self._exec.history),
             "pending_confirm": self._pending_intent is not None,
+            "soul_loaded":     bool(self.profile.soul.raw),
+            "user_loaded":     bool(self.profile.user.raw),
+            "user_role":       self.profile.user.role,
+            "user_lang":       self.profile.user.preferred_lang,
         }
+        return s
 
     def end(self, title: str = "") -> None:
         """结束会话，写入长期记忆。"""
