@@ -6,7 +6,7 @@
 [![Version](https://img.shields.io/badge/version-3.1.0-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-374%2F374-brightgreen)](#测试矩阵)
+[![Tests](https://img.shields.io/badge/tests-466%2F466-brightgreen)](#测试矩阵)
 [![LLM](https://img.shields.io/badge/LLM-Claude%20%7C%20Gemini%20%7C%20GPT%20%7C%20Qwen%20%7C%20Ollama-blueviolet)](#多-llm-provider)
 [![trackintel](https://img.shields.io/badge/mobility-trackintel-9cf)](https://github.com/mie-lab/trackintel)
 [![SRE](https://img.shields.io/badge/SRE-Phase%203%20%E2%9C%85-7B2D8B)](#spatial-reasoning-engine-sre-v300-新增)
@@ -14,7 +14,7 @@
 
 参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。核心理念是用**自然语言**直接驱动 GIS 操作：一句话完成从数据加载、空间分析到制图输出的完整流水线。
 
-**v3.1.0 重点更新：** 新增 Ollama 本地大模型支持（无需 API Key，支持 qwen3 / qwen3.5 / llama4 / deepseek-r1/v3.1 / gemma3 等最新模型离线部署）；新增对话驱动 Profile 更新（自动从对话中提取用户偏好并更新 user.md，安全字段全程锁定），374/374 测试全绿。
+**v3.1.0 重点更新：** 新增 Ollama 本地大模型支持（无需 API Key，支持 qwen3 / qwen3.5 / llama4 / deepseek-r1/v3.1 / gemma3 等最新模型离线部署）；新增对话驱动 Profile 更新（自动从对话中提取用户偏好并更新 user.md，安全字段全程锁定），466/466 测试全绿。
 
 ---
 
