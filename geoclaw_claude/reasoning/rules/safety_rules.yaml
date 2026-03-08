@@ -1,0 +1,30 @@
+# 输出安全规则（对应 soul.md 系统策略）
+
+rules:
+  - id: SAFETY_NO_OVERWRITE_INPUT
+    severity: error
+    condition: "output_path_equals_input_path"
+    message: "输出路径不得与输入数据路径相同。禁止覆盖原始输入数据。"
+    message_en: "Output path must not overwrite input data. Writing to input path is forbidden."
+    constraint_key: do_not_overwrite_input
+
+  - id: SAFETY_OUTPUT_WORKSPACE_ONLY
+    severity: error
+    condition: "require_output_workspace AND output_outside_workspace"
+    message: "系统策略要求输出文件只能写入指定工作区（workspace）。检测到非法输出路径。"
+    message_en: "System policy requires output files to be written to the designated workspace only."
+    constraint_key: write_output_to_workspace_only
+
+  - id: SAFETY_UNREGISTERED_TOOL
+    severity: error
+    condition: "allow_unregistered_tools_is_false AND unregistered_tool_requested"
+    message: "系统策略不允许调用未注册的工具。请先通过 Skill 系统注册该工具。"
+    message_en: "System policy forbids unregistered tools. Register the tool via the Skill system first."
+    constraint_key: use_registered_tools_only
+
+  - id: SAFETY_READONLY_INPUT
+    severity: error
+    condition: "readonly_inputs_is_true AND write_to_input_attempted"
+    message: "输入数据集标记为只读，不得对其执行写操作。"
+    message_en: "Input datasets are marked read-only. Write operations are forbidden."
+    constraint_key: respect_readonly_inputs

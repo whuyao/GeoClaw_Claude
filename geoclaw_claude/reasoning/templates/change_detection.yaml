@@ -1,0 +1,163 @@
+# Change Detection — 变化检测方法模板
+# 任务类型: change_detection
+# 典型场景: 土地利用变化、城市扩张、植被变化、建设用地提取
+
+template_id: change_detection
+display_name: "变化检测"
+display_name_en: "Change Detection"
+applicable_intents:
+  - change_detection
+  - comparison
+  - prediction
+  - explanation
+applicable_entity_types:
+  - raster
+  - polygon
+  - region
+  - grid
+applicable_relations:
+  - overlaps
+  - within
+  - contains
+
+data_requirements:
+  minimum_periods: 2
+  note: "变化检测至少需要两期数据，且时间戳必须明确且可比"
+
+methods:
+  - id: raster_differencing
+    name: "栅格差值分析"
+    name_en: "Raster Differencing"
+    description: "计算两期栅格的像元值差值，直接展示变化量级与方向。"
+    description_en: "Compute pixel-wise difference between two raster periods to show magnitude and direction of change."
+    priority: 1
+    requires:
+      - raster_period_1
+      - raster_period_2
+      - same_crs_and_extent
+    preconditions:
+      - align_raster_resolution
+      - align_raster_extent
+      - ensure_crs_match
+    parameters:
+      threshold:
+        type: float
+        default: 0.0
+        description: "变化检测阈值，绝对差值超过此值才记为变化"
+        sensitivity: medium
+      normalize:
+        type: bool
+        default: false
+    output_types: [raster, map]
+    limitations:
+      - "对传感器噪声和辐射定标误差敏感"
+      - "需要两期数据分辨率和范围完全对齐"
+    when_to_prefer: "连续值变化（如 NDVI、LST、DEM），需要量化变化幅度时"
+
+  - id: land_cover_transition_matrix
+    name: "土地覆盖转移矩阵"
+    name_en: "Land Cover Transition Matrix"
+    description: "统计各土地覆盖类型之间的面积转换，生成转移矩阵，揭示主要变化方向。"
+    description_en: "Quantify area transitions between land cover classes across periods to reveal dominant change trajectories."
+    priority: 1
+    requires:
+      - classified_raster_or_polygon_t1
+      - classified_raster_or_polygon_t2
+    preconditions:
+      - ensure_class_schema_consistency
+      - ensure_crs_and_extent_match
+    parameters:
+      class_field:
+        type: string
+        default: "land_class"
+      area_unit:
+        type: string
+        default: "km2"
+        options: ["m2", "ha", "km2"]
+    output_types: [table, report, map]
+    limitations:
+      - "分类体系必须在两期间保持一致"
+      - "小面积变化可能被较大类别的统计误差掩盖"
+    when_to_prefer: "土地利用/覆盖变化分析，需要量化各类别面积变化和相互转换时"
+
+  - id: temporal_overlay
+    name: "时序叠加分析"
+    name_en: "Temporal Overlay"
+    description: "将两期矢量多边形叠加，识别新增、消失、持续和变化区域。"
+    description_en: "Overlay vector layers from two periods to identify new, disappeared, persistent, and changed areas."
+    priority: 1
+    requires:
+      - vector_polygon_t1
+      - vector_polygon_t2
+    preconditions:
+      - ensure_crs_match
+    parameters:
+      change_types:
+        type: list
+        default: ["new", "disappeared", "persistent", "changed"]
+      min_area_m2:
+        type: float
+        default: 100
+    output_types: [geofile, table, map]
+    when_to_prefer: "矢量数据的空间变化识别，如建筑足迹、城市边界扩展分析"
+
+  - id: trend_analysis
+    name: "时间序列趋势分析"
+    name_en: "Temporal Trend Analysis"
+    description: "分析多期数据的变化趋势（增长/减少/波动），拟合趋势线，识别变化加速区。"
+    description_en: "Analyze multi-period trends (growth/decline/fluctuation) by fitting trend lines and identifying acceleration zones."
+    priority: 2
+    requires:
+      - multi_period_data_3_or_more
+    preconditions:
+      - verify_consistent_time_intervals
+    parameters:
+      method:
+        type: string
+        default: "linear"
+        options: ["linear", "mann_kendall", "polynomial"]
+      significance_level:
+        type: float
+        default: 0.05
+    output_types: [table, map, report]
+    limitations:
+      - "至少需要 3 期以上数据"
+      - "非均匀时间间隔需特殊处理"
+    when_to_prefer: "有 3 期及以上数据，需要判断变化方向和显著性时"
+
+  - id: urban_expansion_analysis
+    name: "城市扩张分析"
+    name_en: "Urban Expansion Analysis"
+    description: "专门针对建设用地扩张的综合分析，包括扩张面积、方向、速率和模式识别。"
+    description_en: "Dedicated urban expansion analysis covering area growth, direction, rate, and spatial pattern."
+    priority: 2
+    requires:
+      - urban_footprint_t1
+      - urban_footprint_t2
+    preconditions:
+      - reproject_to_metric_crs
+    parameters:
+      center_point:
+        type: list
+        description: "城市中心点坐标 [lng, lat]，用于方向分析"
+      sector_count:
+        type: int
+        default: 8
+        description: "方向扇区数（8=八方向，16=十六方向）"
+    output_types: [geofile, table, map, report]
+    when_to_prefer: "专项城市扩张研究，需要分析扩张方向和模式时"
+
+recommended_output_artifacts:
+  - type: raster
+    name: "change_map.tif"
+  - type: table
+    name: "change_statistics.csv"
+  - type: map
+    name: "change_detection_map.png"
+  - type: report
+    name: "change_report.md"
+
+maup_risk: low
+scale_sensitivity: high
+temporal_required: true
+notes: "变化检测的核心前提是两期数据具有可比性（相同分类体系、相似时相、相同空间分辨率）。建议先进行数据质量评估。"

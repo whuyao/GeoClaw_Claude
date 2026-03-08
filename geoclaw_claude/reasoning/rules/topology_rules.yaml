@@ -1,0 +1,37 @@
+# 几何/拓扑硬规则
+
+rules:
+  - id: TOPO_POINT_NO_AREA_STAT
+    severity: error
+    condition: "zonal_statistics AND input_is_point_layer"
+    message: "点图层不能直接做面内面积统计（zonal statistics）。需要先将点转为面（如缓冲区、泰森多边形）或使用 polygon zone 图层。"
+    message_en: "Point layers cannot be used directly as zones for area statistics. Convert to polygons first."
+    constraint_key: convert_points_to_zones_before_zonal_stats
+
+  - id: TOPO_RASTER_VECTOR_NEED_CONVERSION
+    severity: warning
+    condition: "joint_analysis AND has_raster AND has_vector"
+    message: "栅格与矢量联合分析前，需明确转换逻辑（矢量→栅格 或 栅格→矢量）。"
+    message_en: "Joint raster-vector analysis requires explicit conversion logic (vector→raster or raster→vector)."
+    constraint_key: define_raster_vector_conversion_before_analysis
+
+  - id: TOPO_NETWORK_REQUIRES_NETWORK_DATA
+    severity: error
+    condition: "network_analysis AND no_network_dataset"
+    message: "网络分析（最短路径/等时圈/服务区）需要网络结构数据（道路网）。当前数据集中未检测到网络数据。"
+    message_en: "Network analysis requires a road/network dataset. None detected in current datasets."
+    constraint_key: provide_network_data_for_network_analysis
+
+  - id: TOPO_EXTENT_NO_OVERLAP
+    severity: error
+    condition: "spatial_join_or_overlay AND datasets_extent_no_overlap"
+    message: "参与叠加/空间连接的图层空间范围无重叠，分析结果将为空。请确认数据范围是否正确。"
+    message_en: "Datasets have no spatial extent overlap. Overlay/join result will be empty."
+    constraint_key: validate_extent_overlap
+
+  - id: TOPO_EXTENT_PARTIAL_OVERLAP
+    severity: warning
+    condition: "spatial_join_or_overlay AND datasets_extent_partial_overlap"
+    message: "参与叠加/空间连接的图层空间范围仅部分重叠，分析结果仅覆盖重叠区域。"
+    message_en: "Partial extent overlap detected. Analysis results will cover overlap area only."
+    constraint_key: null

@@ -1,0 +1,153 @@
+# Accessibility Analysis — 可达性分析方法模板
+# 任务类型: accessibility_analysis
+# 典型场景: 医疗/教育设施覆盖、公共服务可达性、公平性评估
+
+template_id: accessibility
+display_name: "可达性分析"
+display_name_en: "Accessibility Analysis"
+applicable_intents:
+  - accessibility
+  - comparison
+  - optimization
+  - explanation
+applicable_entity_types:
+  - point
+  - facility
+  - network
+  - region
+  - polygon
+applicable_relations:
+  - accessible_from
+  - within
+  - nearest
+
+methods:
+  - id: service_area
+    name: "服务区分析"
+    name_en: "Service Area Analysis"
+    description: "基于网络分析生成设施的服务覆盖区（等时线或等距线），反映实际通行可达范围。"
+    description_en: "Generate network-based service areas (isochrones or isodistance) around facilities."
+    priority: 1
+    requires:
+      - facility_points
+      - road_network
+    preconditions:
+      - validate_network_connectivity
+      - reproject_to_metric_crs
+    parameters:
+      travel_time_min:
+        type: list
+        default: [5, 10, 15]
+        description: "出行时间阈值（分钟）"
+      travel_mode:
+        type: string
+        default: "walk"
+        options: ["walk", "drive", "bike", "transit"]
+    output_types: [geofile, map]
+    limitations:
+      - "需要路网数据，无路网时退化为欧氏距离"
+      - "出行速度假设影响结果"
+    when_to_prefer: "有路网数据且用户关注实际出行可达性时，准确性高于缓冲区"
+
+  - id: isochrone
+    name: "等时线生成"
+    name_en: "Isochrone Generation"
+    description: "计算从设施出发在特定时间内可到达的区域边界，用于可视化空间覆盖。"
+    description_en: "Compute isochrone boundaries showing areas reachable within specified travel times."
+    priority: 1
+    requires:
+      - facility_points
+      - road_network
+    preconditions:
+      - validate_network_connectivity
+    parameters:
+      cutoff_minutes:
+        type: list
+        default: [10, 20, 30]
+      network_type:
+        type: string
+        default: "walk"
+    output_types: [geofile, map]
+    when_to_prefer: "需要可视化展示时间圈覆盖范围，适合政策汇报场景"
+
+  - id: two_step_fca
+    name: "两步移动搜索法（2SFCA）"
+    name_en: "Two-Step Floating Catchment Area"
+    description: "同时考虑供给（设施容量）和需求（人口），计算空间可达性指数，常用于医疗资源公平性分析。"
+    description_en: "Compute accessibility index balancing facility supply and population demand—widely used for healthcare equity."
+    priority: 2
+    requires:
+      - facility_points_with_capacity
+      - demand_points_or_zones
+    preconditions:
+      - reproject_to_metric_crs
+      - verify_capacity_field
+    parameters:
+      catchment_radius_m:
+        type: float
+        default: 2000
+      decay_function:
+        type: string
+        default: "gaussian"
+        options: ["gaussian", "linear", "step"]
+    output_types: [table, geofile, map]
+    limitations:
+      - "需要设施容量字段（如床位数、医生数）"
+      - "对搜索半径和衰减函数选择敏感"
+    when_to_prefer: "用户明确提及公平性/均等性分析，或需要同时考虑设施供给与人口需求时"
+
+  - id: network_reachability
+    name: "网络可达性分析"
+    name_en: "Network-Based Reachability"
+    description: "基于路网计算各区域/节点到目标设施的最短路径距离或时间。"
+    description_en: "Compute shortest path distance or travel time from demand zones to target facilities via road network."
+    priority: 2
+    requires:
+      - demand_locations
+      - target_facilities
+      - road_network
+    preconditions:
+      - validate_network_connectivity
+    parameters:
+      metric:
+        type: string
+        default: "time"
+        options: ["time", "distance"]
+    output_types: [table, geofile]
+    when_to_prefer: "需要精确量化每个需求点到设施的最短路径时"
+
+  - id: euclidean_accessibility
+    name: "欧氏距离可达性"
+    name_en: "Euclidean Distance Accessibility"
+    description: "以直线距离近似可达性，无需路网数据，适合数据缺失场景的快速估算。"
+    description_en: "Approximate accessibility using straight-line distance—no network data needed, fast estimation."
+    priority: 3
+    requires:
+      - demand_locations
+      - facility_points
+    preconditions:
+      - reproject_to_metric_crs
+    parameters:
+      radius_m:
+        type: float
+        default: 1500
+    output_types: [table, map]
+    limitations:
+      - "不反映实际路网通达性，精度低于网络方法"
+      - "山地/水体等障碍会导致显著偏差"
+    when_to_prefer: "缺乏路网数据时的替代方案，或作为初步筛查"
+
+recommended_output_artifacts:
+  - type: geofile
+    name: "service_area.gpkg"
+  - type: table
+    name: "accessibility_index.csv"
+  - type: map
+    name: "accessibility_map.png"
+  - type: report
+    name: "accessibility_report.md"
+
+equity_relevant: true
+maup_risk: medium
+scale_sensitivity: high
+notes: "可达性分析强烈建议配合人口数据使用，以评估覆盖率和公平性。"

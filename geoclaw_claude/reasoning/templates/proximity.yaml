@@ -1,0 +1,154 @@
+# Proximity Analysis — 邻近分析方法模板
+# 任务类型: proximity_analysis / comparison
+# 典型场景: 站点周边分析、设施服务范围、缓冲区统计
+
+template_id: proximity
+display_name: "邻近分析"
+display_name_en: "Proximity Analysis"
+applicable_intents:
+  - comparison
+  - selection
+  - summarization
+applicable_entity_types:
+  - point
+  - facility
+  - polygon
+  - region
+applicable_relations:
+  - within
+  - nearest
+  - contains
+
+methods:
+  - id: buffer_summary
+    name: "缓冲区统计"
+    name_en: "Buffer + Summary"
+    description: "以目标要素为中心生成缓冲区，统计缓冲区内其他要素的数量、密度或属性分布。"
+    description_en: "Generate buffers around target features, then summarize attributes of features within."
+    priority: 1
+    requires:
+      - target_points_or_polygons
+      - summary_features
+    preconditions:
+      - reproject_to_metric_crs
+    parameters:
+      radius_m:
+        type: float
+        default: 500
+        description: "缓冲半径（米）"
+        sensitivity: high
+      summary_fields:
+        type: list
+        default: ["count"]
+        description: "统计字段：count / area / density / diversity"
+    output_types: [table, geofile]
+    limitations:
+      - "结果对缓冲半径选择敏感"
+      - "圆形缓冲区忽略实际通达性"
+    when_to_prefer: "用户关注站点/设施周边局部特征差异时优先选用，解释性强"
+
+  - id: multi_ring_buffer
+    name: "多环缓冲区统计"
+    name_en: "Multi-Ring Buffer Summary"
+    description: "生成多个同心缓冲环，分环统计要素分布，揭示距离梯度效应。"
+    description_en: "Create concentric buffer rings and summarize feature distribution per ring to reveal distance-decay effects."
+    priority: 1
+    requires:
+      - target_points_or_polygons
+      - summary_features
+    preconditions:
+      - reproject_to_metric_crs
+    parameters:
+      radii:
+        type: list
+        default: [300, 500, 800]
+        description: "缓冲半径列表（米），如 [300, 500, 800, 1200]"
+        sensitivity: high
+      summary_fields:
+        type: list
+        default: ["count", "density"]
+    output_types: [table, geofile, map]
+    limitations:
+      - "半径选择对结果影响较大，建议参考领域知识"
+      - "不反映实际步行/通行时间"
+    when_to_prefer: "需要展示距离衰减规律，或比较不同距离圈的影响强度时优先选用"
+
+  - id: distance_to_nearest
+    name: "最近距离计算"
+    name_en: "Distance to Nearest"
+    description: "计算每个要素到最近目标要素的欧氏距离或网络距离。"
+    description_en: "Compute Euclidean or network distance from each feature to the nearest target."
+    priority: 2
+    requires:
+      - source_features
+      - target_features
+    preconditions:
+      - reproject_to_metric_crs
+    parameters:
+      distance_type:
+        type: string
+        default: "euclidean"
+        options: ["euclidean", "network"]
+        description: "距离类型"
+    output_types: [table, geofile]
+    limitations:
+      - "欧氏距离忽略地形和路网约束"
+    when_to_prefer: "需要量化每个要素的空间剥夺程度，或作为权重输入其他分析时"
+
+  - id: spatial_join_summary
+    name: "空间连接统计"
+    name_en: "Spatial Join Summary"
+    description: "通过空间连接将多边形内的点属性聚合到多边形，或反向查询。"
+    description_en: "Spatially join point attributes into polygons for zone-level aggregation."
+    priority: 1
+    requires:
+      - polygon_zones
+      - point_features
+    preconditions:
+      - ensure_crs_alignment
+    parameters:
+      summary_fields:
+        type: list
+        default: ["count", "category_diversity"]
+      predicate:
+        type: string
+        default: "within"
+        options: ["within", "intersects"]
+    output_types: [table, geofile]
+    when_to_prefer: "已有区域边界，需对区域内点要素做统计聚合时"
+
+  - id: kernel_density
+    name: "核密度估计"
+    name_en: "Kernel Density Estimation"
+    description: "生成连续密度栅格，直观展示要素空间集聚热点。"
+    description_en: "Generate a continuous density raster showing spatial clustering patterns."
+    priority: 2
+    requires:
+      - point_features
+    preconditions:
+      - reproject_to_metric_crs
+    parameters:
+      bandwidth_m:
+        type: float
+        default: 500
+        description: "核带宽（米）"
+        sensitivity: high
+      cell_size_m:
+        type: float
+        default: 50
+    output_types: [raster, map]
+    limitations:
+      - "带宽选择显著影响结果平滑程度"
+      - "可视化效果好但不适合精确统计比较"
+    when_to_prefer: "用于可视化热点补充，或用户明确要求密度图时作为辅助分析"
+
+recommended_output_artifacts:
+  - type: geofile
+    name: "proximity_result.gpkg"
+  - type: table
+    name: "proximity_summary.csv"
+  - type: map
+    name: "proximity_map.png"
+
+maup_risk: low
+scale_sensitivity: medium

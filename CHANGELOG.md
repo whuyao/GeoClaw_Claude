@@ -1,3 +1,26 @@
+## v3.0.0-alpha (2026-03-08) — Spatial Reasoning Engine Phase 2
+
+### 新增功能
+- **template_library.py**：方法模板库加载与匹配引擎，支持 5 类分析场景（邻近/可达性/选址/变化检测/轨迹）
+- **templates/*.yaml**：5 个完整方法模板文件（proximity / accessibility / site_selection / change_detection / trajectory），共包含 24 个分析方法
+- **primitive_resolver.py**：地理原语解析器，三层解析（关键词 + 数据集类型推断 + 属性字段推断），支持 10 种实体 + 9 种关系 + 12 种指标
+- **llm_reasoner.py（完整 Phase 2 实现）**：LLM Geo Reasoner，包含 Task Interpreter / Geo Method Reasoner / Geo Explanation Generator
+  - 结构化 Prompt 构建（含规则层约束 + 模板局限说明注入）
+  - 多策略 JSON 响应解析（直接解析 / 代码块提取 / {...} 块提取）
+  - LLM 调用失败自动降级 rule-only 模式
+- **reason_with_llm() 新入口**：SRE 完整模式（rule + template + primitive + LLM），LLM 失败自动降级
+- **reason() 增强**：Phase 2 调用链（primitive_resolver + template_library 参与推理，无 LLM 也有更丰富的方法候选）
+- **workflow_synthesizer Phase 2 扩展**：LLM primary_method 注入 candidates 首位，secondary_methods 自动加入 optional_steps
+- **validator Phase 2 扩展**：Reasoning Consistency（6.3）+ Uncertainty Caveat（6.4）校验
+- **test_sre_phase2.py**：76 项 Phase 2 专项测试
+
+### 版本
+- SRE 引擎版本：sre-0.2-phase2
+- 测试总数：272/272 (196 + 76)
+
+
+---
+
 # GeoClaw-claude 版本历史
 
 **UrbanComp Lab** (https://urbancomp.net)

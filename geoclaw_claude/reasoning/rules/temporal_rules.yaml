@@ -1,0 +1,23 @@
+# 时序规则
+
+rules:
+  - id: TEMPORAL_CHANGE_REQUIRES_MULTIPERIOD
+    severity: error
+    condition: "change_detection AND single_period_data"
+    message: "变化检测分析需要至少两期数据。当前仅检测到单期数据。"
+    message_en: "Change detection requires at least two time periods. Only single-period data detected."
+    constraint_key: provide_multiperiod_data_for_change_detection
+
+  - id: TEMPORAL_COMPARISON_NEEDS_ALIGNED_RANGE
+    severity: warning
+    condition: "temporal_comparison AND time_range_mismatch"
+    message: "时间段比较分析要求两期数据的时间范围可比对。请确认时间戳一致性。"
+    message_en: "Temporal comparison requires aligned time ranges. Please verify timestamp consistency."
+    constraint_key: align_temporal_ranges
+
+  - id: TEMPORAL_TREND_NEEDS_3PLUS_PERIODS
+    severity: warning
+    condition: "trend_analysis AND fewer_than_3_periods"
+    message: "趋势分析建议至少 3 期数据以保证统计可靠性。"
+    message_en: "Trend analysis is more reliable with 3 or more time periods."
+    constraint_key: null

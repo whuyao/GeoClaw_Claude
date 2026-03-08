@@ -1,0 +1,148 @@
+# Trajectory Analysis — 轨迹/移动性分析方法模板
+# 任务类型: clustering / comparison / summarization
+# 典型场景: 出行 OD 分析、停留点检测、人群移动模式、出行链分析
+
+template_id: trajectory
+display_name: "轨迹/移动性分析"
+display_name_en: "Trajectory & Mobility Analysis"
+applicable_intents:
+  - clustering
+  - comparison
+  - summarization
+  - change_detection
+applicable_entity_types:
+  - trajectory
+  - point
+  - network
+  - region
+applicable_relations:
+  - co_located_with
+  - within
+  - nearest
+
+methods:
+  - id: od_extraction
+    name: "OD 提取与聚合"
+    name_en: "OD (Origin-Destination) Extraction"
+    description: "从轨迹数据中提取出发地（Origin）和目的地（Destination），并按区域聚合为 OD 流量矩阵。"
+    description_en: "Extract origin and destination from trajectories and aggregate into an OD flow matrix by zone."
+    priority: 1
+    requires:
+      - trajectory_data_with_timestamps
+    preconditions:
+      - validate_temporal_ordering
+    parameters:
+      zone_layer:
+        type: string
+        description: "聚合区域图层 ID（如行政区、格网）"
+      trip_segmentation:
+        type: bool
+        default: true
+        description: "是否先做出行分段再提取 OD"
+    output_types: [table, geofile, map]
+    limitations:
+      - "OD 点定义（首末点）可能不代表真实出发/到达地"
+      - "活动链中的中间停留会影响 OD 识别"
+    when_to_prefer: "分析人群出行流向、流量，或绘制流向图时"
+
+  - id: stay_point_detection
+    name: "停留点检测"
+    name_en: "Stay Point Detection"
+    description: "识别轨迹中个体在某区域停留一段时间的位置，揭示活动地点。"
+    description_en: "Detect locations where individuals stayed for a defined duration, revealing activity places."
+    priority: 1
+    requires:
+      - trajectory_data_with_timestamps
+    preconditions:
+      - reproject_to_metric_crs
+      - validate_temporal_ordering
+    parameters:
+      radius_m:
+        type: float
+        default: 200
+        description: "停留区域半径（米）"
+        sensitivity: medium
+      min_duration_min:
+        type: float
+        default: 10
+        description: "最小停留时长（分钟）"
+        sensitivity: high
+    output_types: [geofile, table]
+    limitations:
+      - "参数（半径、最短停留时间）选取影响结果"
+      - "GPS 精度不足时会产生伪停留点"
+    when_to_prefer: "需要识别个体活动地点、日常生活模式时"
+
+  - id: trip_segmentation
+    name: "出行分段"
+    name_en: "Trip Segmentation"
+    description: "将连续 GPS 轨迹按停留点切割为出行段，识别每段出行的起止时间、时长和距离。"
+    description_en: "Segment continuous GPS traces at stay points to identify individual trips with timing and distance."
+    priority: 2
+    requires:
+      - trajectory_data_with_timestamps
+    preconditions:
+      - stay_point_detection_or_time_gap
+    parameters:
+      time_gap_min:
+        type: float
+        default: 15
+        description: "判断出行间隔的时间阈值（分钟）"
+    output_types: [geofile, table]
+    when_to_prefer: "需要以出行为单位做分析时，如出行时长分布、出行模式识别"
+
+  - id: flow_aggregation
+    name: "流量聚合与可视化"
+    name_en: "Flow Aggregation & Visualization"
+    description: "将 OD 矩阵聚合为区域间流量，生成流向图（desire line）或桑基图，揭示主要流量方向。"
+    description_en: "Aggregate OD matrix into zone-to-zone flows and visualize as desire lines or Sankey diagrams."
+    priority: 2
+    requires:
+      - od_matrix_or_trajectory_data
+      - zone_layer
+    parameters:
+      min_flow_threshold:
+        type: int
+        default: 10
+        description: "最小显示流量阈值（过滤低频 OD 对）"
+      top_n_flows:
+        type: int
+        default: 50
+    output_types: [geofile, map, table]
+    when_to_prefer: "需要展示主要流动模式，或制作流向图用于报告时"
+
+  - id: mobility_metrics
+    name: "移动性指标计算"
+    name_en: "Mobility Metrics Computation"
+    description: "计算个体或群体的移动性指标：回旋半径、活动熵、出行频率、活动空间面积等。"
+    description_en: "Compute individual/group mobility indicators: radius of gyration, activity entropy, trip frequency, activity space."
+    priority: 2
+    requires:
+      - individual_trajectory_data
+    parameters:
+      metrics:
+        type: list
+        default: ["radius_of_gyration", "trip_count", "activity_space"]
+      aggregation_level:
+        type: string
+        default: "individual"
+        options: ["individual", "group", "zone"]
+    output_types: [table, report]
+    limitations:
+      - "需要足够时间跨度的数据（建议 ≥1 周）才能代表习惯性行为"
+    when_to_prefer: "研究个体或群体出行特征差异、社会隔离、移动性公平性时"
+
+recommended_output_artifacts:
+  - type: geofile
+    name: "stay_points.gpkg"
+  - type: table
+    name: "od_matrix.csv"
+  - type: map
+    name: "flow_map.png"
+  - type: report
+    name: "mobility_summary.md"
+
+maup_risk: high
+scale_sensitivity: high
+privacy_sensitive: true
+notes: "轨迹数据涉及个人隐私，建议在分析前进行匿名化处理。停留点和 OD 提取结果对参数选择较为敏感，建议进行参数敏感性验证。"

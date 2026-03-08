@@ -1,0 +1,23 @@
+# 分辨率与空间尺度规则
+
+rules:
+  - id: SCALE_RASTER_ALIGNMENT
+    severity: warning
+    condition: "raster_overlay AND raster_resolution_mismatch"
+    message: "栅格叠加时检测到像元大小不一致。应统一分辨率和对齐方式（resample/align）后再叠加。"
+    message_en: "Raster overlay detected with mismatched cell sizes. Resample and align rasters before overlay."
+    constraint_key: align_raster_resolution_before_overlay
+
+  - id: SCALE_MAUP_WARNING
+    severity: warning
+    condition: "zonal_aggregation OR administrative_unit_analysis"
+    message: "基于行政区聚合分析可能受可变面积单元问题（MAUP）影响，结果对分区方案敏感。建议在报告中注明。"
+    message_en: "Administrative unit aggregation is subject to Modifiable Areal Unit Problem (MAUP). Results are sensitive to zone definition."
+    constraint_key: null
+
+  - id: SCALE_BUFFER_RADIUS_SENSITIVITY
+    severity: info
+    condition: "buffer_analysis"
+    message: "缓冲区分析结果对缓冲半径选择较敏感，建议进行多半径敏感性测试或在报告中说明参数依据。"
+    message_en: "Buffer analysis results are sensitive to radius selection. Consider multi-radius sensitivity testing."
+    constraint_key: null

@@ -1,0 +1,160 @@
+# Site Selection — 选址分析方法模板
+# 任务类型: optimization / selection
+# 典型场景: AED 选址、商业选址、设施布局优化、候选地评估
+
+template_id: site_selection
+display_name: "选址分析"
+display_name_en: "Site Selection / Location Optimization"
+applicable_intents:
+  - optimization
+  - selection
+  - comparison
+applicable_entity_types:
+  - point
+  - polygon
+  - facility
+  - region
+applicable_relations:
+  - within
+  - nearest
+  - accessible_from
+  - co_located_with
+
+methods:
+  - id: weighted_overlay
+    name: "加权叠加分析"
+    name_en: "Weighted Overlay"
+    description: "将多个评价因子图层按权重叠加，生成综合适宜性评分，用于选址决策。"
+    description_en: "Overlay multiple criterion layers with assigned weights to produce a composite suitability score."
+    priority: 1
+    requires:
+      - criterion_layers_min_2
+      - weight_vector
+    preconditions:
+      - normalize_all_criteria
+      - ensure_crs_alignment
+      - ensure_extent_alignment
+    parameters:
+      criteria:
+        type: list
+        description: "评价因子列表，如 [proximity_to_road, population_density, land_use_suitability]"
+      weights:
+        type: list
+        description: "对应权重（归一化，和为 1），如 [0.4, 0.35, 0.25]"
+        sensitivity: high
+      score_scale:
+        type: int
+        default: 9
+        description: "评分量表（通常 1-5 或 1-9）"
+    output_types: [raster, geofile, map]
+    limitations:
+      - "权重赋值具有主观性，建议敏感性分析"
+      - "不同量纲因子需标准化后再叠加"
+      - "结果是相对适宜性，非绝对最优解"
+    when_to_prefer: "有明确多因子评价体系，且因子可量化为栅格层时首选"
+
+  - id: location_allocation
+    name: "选址-分配模型"
+    name_en: "Location-Allocation"
+    description: "在候选点中选出 p 个最优设施位置，使总需求覆盖最大化或总距离最小化。"
+    description_en: "Select p optimal facility locations from candidates to maximize coverage or minimize total distance."
+    priority: 1
+    requires:
+      - demand_points
+      - candidate_sites
+    preconditions:
+      - reproject_to_metric_crs
+    parameters:
+      num_facilities:
+        type: int
+        default: 3
+        description: "需要选出的设施数量 p"
+      objective:
+        type: string
+        default: "maximize_coverage"
+        options: ["maximize_coverage", "minimize_impedance", "minimize_facilities"]
+      max_distance_m:
+        type: float
+        default: 1000
+        description: "覆盖半径（米）"
+    output_types: [geofile, table, map]
+    limitations:
+      - "候选点需预先生成，算法不自动创造新位置"
+      - "大规模问题计算量可能较大"
+    when_to_prefer: "明确知道候选点位置，需要在候选中选最优组合时"
+
+  - id: coverage_optimization
+    name: "最大覆盖优化"
+    name_en: "Maximum Coverage Optimization"
+    description: "以最少设施数量覆盖最多人口或需求点，适用于应急设施（AED、消防站）布局。"
+    description_en: "Cover the maximum population/demand with minimum number of facilities—suitable for emergency services."
+    priority: 1
+    requires:
+      - demand_points_or_zones
+      - candidate_sites
+    preconditions:
+      - reproject_to_metric_crs
+    parameters:
+      coverage_radius_m:
+        type: float
+        default: 500
+        description: "覆盖半径（米）"
+      num_new_facilities:
+        type: int
+        default: 5
+    output_types: [geofile, table, map, report]
+    when_to_prefer: "应急设施选址，明确目标是最大化覆盖人群，预算有限"
+
+  - id: constrained_candidate_filtering
+    name: "约束条件候选筛选"
+    name_en: "Constrained Candidate Filtering"
+    description: "根据多个硬约束条件（禁止区域、最小距离间隔、土地用途限制）过滤候选点，生成可行候选集。"
+    description_en: "Filter candidate sites by hard constraints (exclusion zones, spacing, land use) to yield a feasible candidate set."
+    priority: 2
+    requires:
+      - candidate_point_or_polygon_layer
+      - constraint_layers
+    preconditions:
+      - ensure_crs_alignment
+    parameters:
+      min_spacing_m:
+        type: float
+        default: 200
+        description: "候选点间最小间距（米）"
+      exclusion_zones:
+        type: list
+        default: []
+        description: "排除区域图层 ID 列表"
+    output_types: [geofile, table]
+    when_to_prefer: "作为选址前置步骤，用于从大量候选中快速排除不合规位置"
+
+  - id: multi_criteria_scoring
+    name: "多准则评分"
+    name_en: "Multi-Criteria Scoring"
+    description: "对候选点计算多维度评分，输出排名表，供决策者比较。"
+    description_en: "Score each candidate site across multiple criteria and produce a ranked comparison table."
+    priority: 2
+    requires:
+      - candidate_sites
+      - criterion_data_per_site
+    parameters:
+      criteria_weights:
+        type: dict
+        description: "准则与权重字典"
+    output_types: [table, report]
+    when_to_prefer: "候选点已确定，需要向决策者展示比较分析结果时"
+
+recommended_output_artifacts:
+  - type: geofile
+    name: "selected_sites.gpkg"
+  - type: table
+    name: "site_scores.csv"
+  - type: map
+    name: "site_selection_map.png"
+  - type: report
+    name: "site_selection_report.md"
+
+equity_relevant: true
+maup_risk: medium
+scale_sensitivity: high
+notes: "选址分析强烈建议进行敏感性分析，检验结果对权重/参数的稳健性。若涉及公平性目标，需加入覆盖率公平指标。"

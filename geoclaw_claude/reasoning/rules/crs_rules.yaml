@@ -1,0 +1,43 @@
+# CRS（坐标参考系）硬规则
+# rule_engine.py 加载此文件并逐条校验
+
+rules:
+  - id: CRS_BUFFER_REQUIRES_PROJECTED
+    severity: error
+    condition: "buffer_or_distance_analysis AND any_dataset_is_geographic_crs"
+    message: "距离/缓冲区分析要求投影坐标系，检测到地理坐标系（如 EPSG:4326）。必须先重投影到合适的投影坐标系。"
+    message_en: "Buffer/distance analysis requires a projected CRS. Geographic CRS detected (e.g. EPSG:4326). Reprojection required."
+    fix_action: reproject_to_projected_crs
+    constraint_key: reproject_to_projected_crs_before_buffer
+
+  - id: CRS_MISMATCH_BEFORE_OVERLAY
+    severity: error
+    condition: "overlay_or_join AND multiple_datasets AND crs_not_uniform"
+    message: "多图层叠加/连接分析时，所有图层 CRS 必须一致。检测到 CRS 不一致。"
+    message_en: "All layers must share the same CRS before overlay/join. CRS mismatch detected."
+    fix_action: align_all_layers_to_common_crs
+    constraint_key: unify_crs_before_overlay
+
+  - id: CRS_UNKNOWN_WARN
+    severity: warning
+    condition: "any_dataset_has_unknown_crs"
+    message: "存在 CRS 未知的数据集，可能导致空间分析结果不正确。"
+    message_en: "One or more datasets have unknown CRS. Analysis results may be incorrect."
+    fix_action: verify_crs_before_analysis
+    constraint_key: verify_unknown_crs
+
+  - id: CRS_AREA_REQUIRES_PROJECTED
+    severity: error
+    condition: "area_calculation AND any_dataset_is_geographic_crs"
+    message: "面积计算要求投影坐标系，检测到地理坐标系。必须先重投影。"
+    message_en: "Area calculation requires projected CRS. Geographic CRS detected. Reprojection required."
+    fix_action: reproject_to_projected_crs
+    constraint_key: reproject_for_area_calculation
+
+  - id: CRS_CHINESE_DATA_RECOMMEND
+    severity: info
+    condition: "study_area_is_china AND crs_is_wgs84"
+    message: "中国地区分析建议使用 CGCS2000 投影（如 EPSG:4547）以获得更精确的距离/面积计算。"
+    message_en: "For China study areas, consider using CGCS2000 projection (e.g. EPSG:4547) for accurate measurements."
+    fix_action: suggest_cgcs2000_projection
+    constraint_key: null
