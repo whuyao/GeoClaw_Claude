@@ -389,6 +389,12 @@ class NLProcessor:
                 explanation=f"加载文件: {path or '(未指定路径)'}",
             )
 
+        # 概念解释（在操作规则之前检查，避免被误匹配）
+        if ("什么是" in t or "什么叫" in t or "解释" in t) and "缓冲" in t:
+            return ParsedIntent(action="chat", params={"reply": "缓冲区分析（Buffer）：在地理要素周围生成指定距离的区域多边形，常用于分析服务影响范围。示例：'对医院做1公里缓冲区'。"}, targets=[], confidence=1.0, explanation="概念解释")
+        if ("什么是" in t or "什么叫" in t) and ("等时圈" in t or "isochrone" in t):
+            return ParsedIntent(action="chat", params={"reply": "等时圈（Isochrone）：从某点出发，在指定时间/距离内可以到达的区域多边形。示例：'生成地铁站15分钟步行等时圈'。"}, targets=[], confidence=1.0, explanation="概念解释")
+
         # 缓冲区
         BUFFER_WORDS = ["缓冲", "buffer", "扩展", "半径", "范围"]
         if any(w in t for w in BUFFER_WORDS):
@@ -674,6 +680,22 @@ class NLProcessor:
             query = text
             return ParsedIntent(action="memory_search", params={"query": query}, targets=[],
                                 confidence=0.75, explanation="搜索记忆系统")
+
+        # 问候 / 闲聊
+        if any(w in t for w in ["你好", "hello", "hi", "嗨", "您好"]):
+            return ParsedIntent(action="chat", params={"reply": "你好！我是 GeoClaw 智能 GIS 助手。你可以用自然语言让我帮你下载地图数据、做缓冲区分析、路网分析、可视化等。输入「帮助」查看更多示例。"}, targets=[], confidence=1.0, explanation="问候")
+        if any(w in t for w in ["能做什么", "你是谁", "介绍一下", "有什么功能"]):
+            return ParsedIntent(action="chat", params={"reply": "我是 GeoClaw GIS 分析助手，支持：\n• 下载 OSM 地图数据（城市、POI、路网）\n• 缓冲区 / 叠加 / 最近邻 / 核密度分析\n• 路网最短路 / 等时圈\n• 静态地图 / 交互地图生成\n输入「帮助」查看完整命令列表。"}, targets=[], confidence=1.0, explanation="功能介绍")
+        if any(w in t for w in ["谢谢", "感谢", "thank", "太棒了"]):
+            return ParsedIntent(action="chat", params={"reply": "不客气！有其他 GIS 分析需求随时告诉我。"}, targets=[], confidence=1.0, explanation="感谢")
+        if "缓冲区" in t and "什么" in t:
+            return ParsedIntent(action="chat", params={"reply": "缓冲区分析（Buffer）：在地理要素周围生成指定距离的区域多边形，常用于分析服务范围。示例：'对医院做1公里缓冲区'。"}, targets=[], confidence=1.0, explanation="概念解释")
+        if "等时圈" in t and "什么" in t:
+            return ParsedIntent(action="chat", params={"reply": "等时圈（Isochrone）：从某点出发，在指定时间/距离内可到达的区域。示例：'生成地铁站15分钟步行等时圈'。"}, targets=[], confidence=1.0, explanation="概念解释")
+
+        # 状态查询
+        if any(w in t for w in ["status", "状态", "layers", "图层列表", "当前图层"]):
+            return ParsedIntent(action="status", params={}, targets=[], confidence=0.9, explanation="查看当前状态")
 
         # 帮助
         if any(w in t for w in ["帮助", "help", "怎么用", "功能", "命令"]):

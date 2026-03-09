@@ -364,6 +364,16 @@ class NLExecutor:
         if a == "help":
             return self._do_help(p)
 
+        if a == "chat":
+            reply = p.get("reply", "好的！")
+            return ExecutionResult(success=True, action="chat", result=reply, message=reply)
+
+        if a == "status":
+            layers = self.list_layers()
+            layer_info = "\n".join(f"  • {l}" for l in layers) if layers else "  (暂无图层)"
+            msg = f"当前会话状态：\n已加载图层 ({len(layers)} 个)：\n{layer_info}"
+            return ExecutionResult(success=True, action="status", result=layers, message=msg)
+
         if a == "unknown":
             raise ValueError(p.get("reason", "无法识别的操作"))
 

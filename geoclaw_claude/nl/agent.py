@@ -100,11 +100,11 @@ class GeoAgent:
         self._profile_updater = ProfileUpdater(self.profile, verbose=verbose)
 
         self._proc = NLProcessor(api_key=api_key, use_ai=use_ai, verbose=verbose)
+        self._exec = NLExecutor(memory_session=session_id, verbose=verbose,
+                                output_dir=output_dir)
         # 把 LLM 引用注入 executor，供 ReAct 使用
         if self._proc._llm is not None:
             self._exec._llm = self._proc._llm
-        self._exec = NLExecutor(memory_session=session_id, verbose=verbose,
-                                output_dir=output_dir)
         self._history: List[ChatMessage] = []
         self._pending_intent: Optional[ParsedIntent] = None   # 等待确认的意图
         self.verbose = verbose
