@@ -699,20 +699,32 @@ class ProfileUpdater:
 
     def update_user_field(self, field: str, value: str) -> "UpdateResult":
         """
-        直接更新 user.md 中的某个字段（由 GeoAgent 在总结会话时调用）。
+        直接更新 user.md 中的某个字段。
 
-        Args:
-            field: 字段名，如 "role" / "preferred_lang" / "comm_style" / "tool_prefs"
-            value: 新值
-
-        Returns:
-            UpdateResult
+        特殊字段处理：
+          - session_insight  : 追加到 ## Session Insights 区块（保留历史记录）
+          - frequent_cities  : 更新 ## Region Preference 区块
+          - inferred_domain  : 更新 ## Inferred Research Domain 区块
+          - preferred_lang / comm_style / tool_prefs 等：键值对覆盖更新
         """
         if not self.pm._loaded:
             self.pm.load()
 
         raw = self.pm._user_raw or DEFAULT_USER_MD
-        updated = self._set_markdown_field(raw, field, value)
+
+        # 特殊字段：session_insight 追加模式
+        if field == "session_insight":
+            updated = self._append_session_insight(raw, value)
+        # 特殊字段：写入专属 section
+        elif field == "frequent_cities":
+            updated = self._upsert_section(raw, "Region Preference",
+                                           f"Frequent cities: {value}")
+        elif field == "inferred_domain":
+            updated = self._upsert_section(raw, "Inferred Research Domain",
+                                           f"Inferred domain: {value}")
+        else:
+            updated = self._set_markdown_field(raw, field, value)
+
         if updated == raw:
             return UpdateResult(
                 file="user.md", fields=[field],
@@ -733,7 +745,7 @@ class ProfileUpdater:
         llm_provider: Optional[Any] = None,
     ) -> List["UpdateResult"]:
         """
-        基于完整对话内容，提取用户偏好并更新 user.md。
+        基于完整对话内容，提取用户偏好并批量更新 user.md（一次写入）。
         可由 GeoAgent.end() 在会话结束时自动触发。
 
         Args:
@@ -746,19 +758,50 @@ class ProfileUpdater:
         if not conversation_turns:
             return []
 
-        results: List[UpdateResult] = []
+        if not self.pm._loaded:
+            self.pm.load()
 
         if llm_provider is not None:
-            # AI 驱动：请 LLM 从对话中提取偏好
             extracted = self._ai_extract_preferences(conversation_turns, llm_provider)
         else:
-            # 规则驱动：简单关键词提取
             extracted = self._rule_extract_preferences(conversation_turns)
 
+        if not extracted:
+            return []
+
+        # 批量应用所有变更（在内存中链式操作，最后一次写入）
+        raw = self.pm._user_raw or DEFAULT_USER_MD
+        results: List["UpdateResult"] = []
+        changed_fields: List[str] = []
+
         for field, value in extracted.items():
-            r = self.update_user_field(field, value)
-            if r.changed:
-                results.append(r)
+            if field == "session_insight":
+                new_raw = self._append_session_insight(raw, value)
+            elif field == "frequent_cities":
+                new_raw = self._upsert_section(raw, "Region Preference",
+                                               f"Frequent cities: {value}")
+            elif field == "inferred_domain":
+                new_raw = self._upsert_section(raw, "Inferred Research Domain",
+                                               f"Inferred domain: {value}")
+            else:
+                new_raw = self._set_markdown_field(raw, field, value)
+
+            if new_raw != raw:
+                raw = new_raw
+                changed_fields.append(f"{field}={value!r}")
+
+        if changed_fields:
+            self._write(self.pm.user_path, raw)
+            self.pm._user_raw = raw  # 直接更新内存，避免重复 reload
+            self.pm.user = __import__(
+                "geoclaw_claude.nl.profile_manager", fromlist=["parse_user"]
+            ).parse_user(raw)
+            results.append(UpdateResult(
+                file="user.md",
+                fields=changed_fields,
+                message=f"[profile] user.md 已自动更新: {', '.join(changed_fields)}",
+                changed=True,
+            ))
 
         return results
 
@@ -912,8 +955,19 @@ class ProfileUpdater:
         self,
         turns: List[Dict[str, str]],
     ) -> Dict[str, str]:
-        """规则式：从对话历史统计用户语言使用情况，推断偏好。"""
-        import re
+        """
+        规则式：从对话历史推断用户偏好。
+
+        推断维度：
+          - preferred_lang  : 统计中/英文字符占比
+          - frequent_cities : 对话中多次出现的城市名
+          - inferred_domain : 根据操作关键词推断研究方向
+          - comm_style      : 根据问题长短推断详细/简洁风格
+          - session_insight : 本次对话摘要（追加到 user.md）
+        """
+        import re as _re
+        from datetime import datetime as _dt
+
         user_texts = [
             t.get("content", "") for t in turns if t.get("role") == "user"
         ]
@@ -921,14 +975,72 @@ class ProfileUpdater:
             return {}
 
         full = " ".join(user_texts)
-        zh_count = len(re.findall(r"[\u4e00-\u9fff]", full))
-        en_count  = len(re.findall(r"[a-zA-Z]+", full))
-
         prefs: Dict[str, str] = {}
+
+        # 1. 语言偏好
+        zh_count = len(_re.findall(r"[\u4e00-\u9fff]", full))
+        en_count  = len(_re.findall(r"[a-zA-Z]+", full))
         if zh_count > en_count * 2:
             prefs["preferred_lang"] = "zh"
         elif en_count > zh_count * 2:
             prefs["preferred_lang"] = "en"
+
+        # 2. 城市偏好（高频城市）
+        CITIES = [
+            "景德镇", "武汉", "北京", "上海", "广州", "深圳", "成都", "南京",
+            "杭州", "西安", "重庆", "天津", "苏州", "郑州", "长沙",
+            "Wuhan", "Beijing", "Shanghai", "Chengdu", "Guangzhou", "Shenzhen",
+        ]
+        city_counts: Dict[str, int] = {}
+        for city in CITIES:
+            cnt = len(_re.findall(_re.escape(city), full, _re.IGNORECASE))
+            if cnt >= 2:
+                city_counts[city] = cnt
+        if city_counts:
+            top_cities = sorted(city_counts, key=lambda c: -city_counts[c])[:3]
+            prefs["frequent_cities"] = ", ".join(top_cities)
+
+        # 3. 研究领域推断
+        domain_keywords = {
+            "urban planning / site selection":  ["选址", "商场", "商业", "mall", "siting"],
+            "transportation / mobility":        ["路网", "公交", "地铁", "等时圈", "isochrone", "routing"],
+            "environmental / ecology":          ["植被", "水体", "生态", "洪水", "NDVI", "DEM"],
+            "public health / facilities":       ["医院", "学校", "卫生", "设施", "hospital"],
+            "population / demographics":        ["人口", "密度", "居住", "住宅", "population"],
+        }
+        domain_scores: Dict[str, int] = {}
+        for domain, kws in domain_keywords.items():
+            score = sum(full.lower().count(kw.lower()) for kw in kws)
+            if score > 0:
+                domain_scores[domain] = score
+        if domain_scores:
+            top_domain = max(domain_scores, key=lambda d: domain_scores[d])
+            if domain_scores[top_domain] >= 2:
+                prefs["inferred_domain"] = top_domain
+
+        # 4. 沟通风格（平均消息长度）
+        avg_len = sum(len(t) for t in user_texts) / max(len(user_texts), 1)
+        if avg_len < 12:
+            prefs["comm_style"] = "brief"
+        elif avg_len > 50:
+            prefs["comm_style"] = "detailed"
+
+        # 5. 会话摘要（写入 Session Insights）
+        agent_texts = [t.get("content", "") for t in turns if t.get("role") == "agent"]
+        ops_done = [t for t in agent_texts if any(
+            kw in t for kw in ["✓", "已完成", "下载完成", "生成", "分析完成", "Done"]
+        )]
+        timestamp = _dt.now().strftime("%Y-%m-%d")
+        summary_parts = [f"[{timestamp}]"]
+        if city_counts:
+            summary_parts.append(f"城市: {', '.join(top_cities)}")
+        if "inferred_domain" in prefs:
+            summary_parts.append(f"领域: {prefs['inferred_domain']}")
+        if ops_done:
+            summary_parts.append(f"完成操作: {len(ops_done)} 项")
+        if len(user_texts) >= 2:
+            prefs["session_insight"] = " | ".join(summary_parts)
+
         return prefs
 
     @staticmethod
@@ -965,6 +1077,42 @@ class ProfileUpdater:
         else:
             raw = raw.rstrip() + f"\nTool preferences: {tool}\n"
         return raw
+
+    @staticmethod
+    def _append_session_insight(raw: str, insight: str) -> str:
+        """在 ## Session Insights section 中追加一条记录（保留历史，自动去重）。"""
+        SECTION = "## Session Insights"
+        if SECTION in raw:
+            # 已有 section，先检查是否重复
+            if insight in raw:
+                return raw  # 已存在，不重复追加
+            idx = raw.index(SECTION)
+            next_sec = raw.find("\n## ", idx + len(SECTION))
+            if next_sec == -1:
+                return raw.rstrip() + f"\n- {insight}\n"
+            else:
+                return raw[:next_sec].rstrip() + f"\n- {insight}\n" + raw[next_sec:]
+        else:
+            return raw.rstrip() + f"\n\n{SECTION}\n- {insight}\n"
+
+    @staticmethod
+    def _upsert_section(raw: str, section_title: str, content_line: str) -> str:
+        """插入或更新一个 ## section（单行内容，覆盖模式）。若内容相同则不写入。"""
+        import re
+        SECTION = f"## {section_title}"
+        if SECTION in raw:
+            # 检查内容是否已经相同
+            idx = raw.index(SECTION)
+            next_sec = raw.find("\n## ", idx + len(SECTION))
+            existing_body = raw[idx + len(SECTION):next_sec if next_sec != -1 else len(raw)]
+            if content_line in existing_body:
+                return raw  # 内容相同，不更新
+            pattern = rf"(## {re.escape(section_title)}\n)(.*?)(\n## |\Z)"
+            replacement = rf"\g<1>{content_line}\n\g<3>"
+            new = re.sub(pattern, replacement, raw, count=1, flags=re.DOTALL)
+            return new if new != raw else raw
+        else:
+            return raw.rstrip() + f"\n\n{SECTION}\n{content_line}\n"
 
     @staticmethod
     def _write(path: Path, content: str) -> None:
