@@ -1,0 +1,12 @@
+{
+"type": "FeatureCollection",
+"name": "jingdezhen_top5_sites",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "rank": 1, "region": "浮梁县城区", "total_score": 82.099339377578289, "score_commercial": 24.0, "score_transport": 23.943048474942973, "score_population": 20.0, "score_competition": 10, "score_location": 4.156290902635325, "lng": 117.23275, "lat": 29.29875, "shop_density_500m": 8, "pop_density_1km": 16, "trans_dist_m": 475.77916625218541 }, "geometry": { "type": "Point", "coordinates": [ 117.232749999999797, 29.29875 ] } },
+{ "type": "Feature", "properties": { "rank": 2, "region": "珠山区", "total_score": 70.670827274228955, "score_commercial": 30.0, "score_transport": 20.173813496668576, "score_population": 3.75, "score_competition": 10, "score_location": 6.7470137775603822, "lng": 117.21025, "lat": 29.28975, "shop_density_500m": 10, "pop_density_1km": 3, "trans_dist_m": 2045.3551030561914 }, "geometry": { "type": "Point", "coordinates": [ 117.210249999999832, 29.28975 ] } },
+{ "type": "Feature", "properties": { "rank": 3, "region": "珠山区", "total_score": 68.304193221260206, "score_commercial": 27.0, "score_transport": 19.895427844259125, "score_population": 5.0, "score_competition": 10, "score_location": 6.4087653770010808, "lng": 117.20575, "lat": 29.29875, "shop_density_500m": 9, "pop_density_1km": 4, "trans_dist_m": 2161.2797996304002 }, "geometry": { "type": "Point", "coordinates": [ 117.205749999999838, 29.29875 ] } },
+{ "type": "Feature", "properties": { "rank": 4, "region": "浮梁县城区", "total_score": 58.535402413708269, "score_commercial": 12.0, "score_transport": 24.066855565828256, "score_population": 7.5, "score_competition": 10, "score_location": 4.9685468478800123, "lng": 117.22375, "lat": 29.29875, "shop_density_500m": 4, "pop_density_1km": 6, "trans_dist_m": 424.22370956685756 }, "geometry": { "type": "Point", "coordinates": [ 117.223749999999811, 29.29875 ] } },
+{ "type": "Feature", "properties": { "rank": 5, "region": "浮梁县城区", "total_score": 58.422917496044505, "score_commercial": 0.0, "score_transport": 21.777494099155405, "score_population": 22.5, "score_competition": 10, "score_location": 4.1454233968891021, "lng": 117.23725, "lat": 29.28975, "shop_density_500m": 0, "pop_density_1km": 18, "trans_dist_m": 1377.5542101718111 }, "geometry": { "type": "Point", "coordinates": [ 117.23724999999979, 29.28975 ] } }
+]
+}
