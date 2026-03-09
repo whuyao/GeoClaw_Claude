@@ -89,27 +89,29 @@ class NLExecutor:
         self._history: List[ExecutionResult] = []   # 执行历史
         self._last_result: Any = None               # 上一步结果
 
-        # 输出目录：参数 > 环境变量 > 配置文件
+        # 输出目录：参数 > 环境变量 > 配置文件 > 默认 ~/geoclaw_output
         import os as _os
+        from geoclaw_claude.config import Config as _Cfg
+        _cfg = _Cfg.load()
         self._output_dir: Optional[str] = (
             output_dir
             or _os.environ.get("GEOCLAW_OUTPUT_DIR")
-            or None
+            or _cfg.output_dir
+            or str(_os.path.expanduser("~/geoclaw_output"))
         )
 
-        # 如果指定了输出目录，用独立 SecurityGuard（不影响全局单例）
+        # 始终初始化 SecurityGuard，确保所有输出都在 output_dir 下
         self._guard = None
-        if self._output_dir:
-            try:
-                from geoclaw_claude.security import SecurityGuard
-                from geoclaw_claude.config import Config
-                cfg = Config.load()
-                self._guard = SecurityGuard(
-                    output_dir=self._output_dir,
-                    protected_dirs=[cfg.data_dir],
-                )
-            except Exception:
-                pass
+        try:
+            from geoclaw_claude.security import SecurityGuard
+            import pathlib
+            pathlib.Path(self._output_dir).mkdir(parents=True, exist_ok=True)
+            self._guard = SecurityGuard(
+                output_dir=self._output_dir,
+                protected_dirs=[_cfg.data_dir],
+            )
+        except Exception:
+            pass
 
         # Memory 集成
         self._mem = None
@@ -575,9 +577,19 @@ class NLExecutor:
                 shutil.copy2(str(raw_path), safe)
             return {"type": "interactive", "path": safe}
         else:
+            import matplotlib
+            matplotlib.use("Agg")
             from geoclaw_claude.cartography.renderer import render_map
             fig = render_map(layers, title=title)
-            return {"type": "static", "figure": fig}
+            # 保存到 output_dir，不依赖 GUI display（防止终端崩溃）
+            filename = "map.png"
+            safe = _safe_outpath(filename)
+            import pathlib
+            pathlib.Path(safe).parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(safe, bbox_inches="tight", dpi=150)
+            import matplotlib.pyplot as plt
+            plt.close(fig)
+            return {"type": "static", "path": safe}
 
     def _do_download_osm(self, p: dict, t: list) -> Any:
         from geoclaw_claude.io.osm import download_pois, download_boundary

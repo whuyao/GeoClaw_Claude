@@ -1025,6 +1025,13 @@ def main():
 
         agent  = GeoAgent(use_ai=use_ai, verbose=False, output_dir=out_dir)
 
+        # 提示当前 AI 模式状态
+        if not agent._proc._use_ai:
+            _warn("当前为规则模式（未配置 AI）。自然语言理解有限，建议运行 geoclaw-claude onboard 配置 LLM。")
+        else:
+            provider = agent._proc._llm.provider_name if agent._proc._llm else "未知"
+            _ok(f"AI 模式已启用（{provider}）")
+
         welcome = agent._history[-1].text if agent._history else ""
         print(f"\n{welcome}\n")
         print("  特殊命令: history(历史) / layers(图层) / status(状态) / exit(退出)\n")

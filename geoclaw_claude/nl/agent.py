@@ -153,8 +153,36 @@ class GeoAgent:
             )
             return self._add_agent_msg(reply, intent=intent)
 
+        # ── 自由对话（chat action）────────────────────────────────────────────
+        if intent.action == "chat":
+            reply = intent.params.get("reply", "")
+            if not reply and self._proc._llm is not None:
+                # 直接用 LLM 生成自然语言回复
+                try:
+                    resp = self._proc._llm.chat(
+                        messages=[{"role": "user", "content": text}],
+                        system="你是 GeoClaw-claude，一个 GIS 智能助手。用中文友好地回复用户。"
+                    )
+                    reply = resp.content if resp else "有什么我可以帮你的？"
+                except Exception:
+                    reply = "有什么 GIS 分析需要帮忙？"
+            if not reply:
+                reply = "有什么 GIS 分析需要帮忙？"
+            return self._add_agent_msg(reply, intent=intent)
+
         # ── 无法识别 ──────────────────────────────────────────────────────────
         if intent.action == "unknown":
+            # AI 模式下：直接用 LLM 生成回复，不抛出固定错误
+            if self._proc._use_ai and self._proc._llm is not None:
+                try:
+                    resp = self._proc._llm.chat(
+                        messages=[{"role": "user", "content": text}],
+                        system="你是 GeoClaw-claude，一个 GIS 智能助手。用中文友好地回复用户，如果是 GIS 需求请说明如何描述，其他问题直接回答。"
+                    )
+                    reply = resp.content if resp else f"抱歉，我没理解「{text}」，请换个说法或输入「帮助」查看支持的操作。"
+                    return self._add_agent_msg(reply, intent=intent)
+                except Exception:
+                    pass
             reply = (
                 f"抱歉，我无法理解：「{text}」\n"
                 f"提示：{intent.params.get('reason', '')}\n"

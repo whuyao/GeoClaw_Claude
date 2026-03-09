@@ -269,3 +269,39 @@ class InteractiveMap:
         self._map.save(path)
         print(f"✓ Interactive map saved → {path}")
         return path
+
+
+# ── 便捷包装函数（供 NLExecutor 调用）─────────────────────────────────────────
+
+def render_map(layers, title: str = "GeoClaw-claude 地图") -> "plt.Figure":
+    """
+    将一组 GeoLayer 渲染为静态地图，返回 matplotlib Figure。
+    不调用 plt.show()，避免在无显示环境下挂死终端。
+    """
+    import matplotlib
+    matplotlib.use("Agg")  # 强制非交互后端，防止终端崩溃
+
+    m = StaticMap()
+    m.set_title(title)
+    for layer in layers:
+        m.add_layer(layer)
+    return m.render()
+
+
+def render_interactive(layers, title: str = "GeoClaw-claude 交互地图") -> str:
+    """
+    将一组 GeoLayer 渲染为 Folium 交互地图，保存为临时 HTML 文件，返回路径。
+    """
+    import tempfile, os
+
+    m = InteractiveMap(title=title)
+    for layer in layers:
+        m.add_layer(layer)
+    m.build()
+
+    tmp = tempfile.NamedTemporaryFile(
+        suffix=".html", prefix="geoclaw_map_", delete=False
+    )
+    tmp.close()
+    m.save(tmp.name)
+    return tmp.name
