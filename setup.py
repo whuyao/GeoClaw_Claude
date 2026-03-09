@@ -13,7 +13,7 @@ long_desc = (Path(__file__).parent / "README.md").read_text(encoding="utf-8") \
 
 setup(
     name="geoclaw-claude",
-    version="3.1.0",
+    version="3.1.1",
     description="Python GIS 工具集 — 空间分析 · 路网 · 栅格 · AI Skill",
     long_description=long_desc,
     long_description_content_type="text/markdown",

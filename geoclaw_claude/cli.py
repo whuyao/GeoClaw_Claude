@@ -40,6 +40,30 @@ def _ensure_click():
 
 # ── 彩色输出工具 ──────────────────────────────────────────────────────────────
 
+def _mask_key(key: str, show: int = 4) -> str:
+    """显示 key 开头和结尾各 show 个字符，中间用 *** 替换。"""
+    if not key:
+        return "(未设置)"
+    key = key.strip()
+    if len(key) <= show * 2:
+        return key[:2] + "***"
+    return f"{key[:show]}...{key[-show:]}"
+
+
+def _prompt_key(label: str, existing: str = "") -> str:
+    """
+    明文输入 API Key（需要看到输入内容便于粘贴长 key）。
+    输入前显示已有 key 的脱敏摘要。
+    """
+    if existing:
+        print(f"    当前: {_mask_key(existing)}")
+        print(f"    直接回车保留现有 key，输入新 key 则覆盖")
+    else:
+        print(f"    （请粘贴 API Key，输入过程中可见，回车确认）")
+    val = input(f"  {label}\n  > ").strip()
+    return val or existing
+
+
 def _ok(msg):   print(f"  \033[32m✓\033[0m {msg}")
 def _warn(msg): print(f"  \033[33m⚠\033[0m {msg}")
 def _err(msg):  print(f"  \033[31m✗\033[0m {msg}")
@@ -54,7 +78,7 @@ def _run_onboard():
     click = _ensure_click()
 
     print("\n" + "─" * 56)
-    print("  🌍  GeoClaw-claude  初始化向导  v3.1.0")
+    print("  🌍  GeoClaw-claude  初始化向导  v3.1.1")
     print("─" * 56)
 
     cfg = Config.load()
@@ -74,41 +98,25 @@ def _run_onboard():
     choice = click.prompt("  请输入序号", default="0").strip()
 
     if choice == "1":
-        key = click.prompt(
-            "  Anthropic API Key（sk-ant-...）",
-            default=cfg.anthropic_api_key or "",
-            hide_input=True, show_default=False, prompt_suffix="\n  > "
-        ).strip()
+        key = _prompt_key("Anthropic API Key（sk-ant-...）", cfg.anthropic_api_key or "")
         if key:
             cfg.anthropic_api_key = key
             cfg.llm_provider = "anthropic"
 
     elif choice == "2":
-        key = click.prompt(
-            "  Qwen API Key（DashScope，sk-...）",
-            default=cfg.qwen_api_key or "",
-            hide_input=True, show_default=False, prompt_suffix="\n  > "
-        ).strip()
+        key = _prompt_key("Qwen API Key（DashScope，sk-...）", cfg.qwen_api_key or "")
         if key:
             cfg.qwen_api_key = key
             cfg.llm_provider = "qwen"
 
     elif choice == "3":
-        key = click.prompt(
-            "  Gemini API Key（AIza...）",
-            default=cfg.gemini_api_key or "",
-            hide_input=True, show_default=False, prompt_suffix="\n  > "
-        ).strip()
+        key = _prompt_key("Gemini API Key（AIza...）", cfg.gemini_api_key or "")
         if key:
             cfg.gemini_api_key = key
             cfg.llm_provider = "gemini"
 
     elif choice == "4":
-        key = click.prompt(
-            "  OpenAI API Key（sk-...）",
-            default=cfg.openai_api_key or "",
-            hide_input=True, show_default=False, prompt_suffix="\n  > "
-        ).strip()
+        key = _prompt_key("OpenAI API Key（sk-...）", cfg.openai_api_key or "")
         if key:
             cfg.openai_api_key = key
             cfg.llm_provider = "openai"

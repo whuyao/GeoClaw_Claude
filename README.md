@@ -1,9 +1,23 @@
 # GeoClaw-Claude
 
+> [!WARNING]
+> **安全声明 / Security Notice**
+>
+> GeoClaw 是一个具备文件系统访问、代码执行和网络请求能力的 AI 智能体框架。
+> **强烈建议在沙盒环境（虚拟机、Docker 容器或独立测试机）中运行，不要直接在主力工作机上部署。**
+>
+> GeoClaw is an AI agent framework with file system access, code execution, and network request capabilities.
+> **It is strongly recommended to run it in a sandboxed environment (VM, Docker container, or a dedicated test machine). Do not deploy directly on your primary workstation.**
+>
+> - 出现问题请提交 [GitHub Issue](https://github.com/whuyao/GeoClaw_Claude/issues)
+> - 生产部署请联系 UrbanComp Lab: urbancomp.net
+
+
+
 > **UrbanComp Lab** 出品的轻量级 Python 城市地理信息分析工具集
 > https://urbancomp.net
 
-[![Version](https://img.shields.io/badge/version-3.1.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.1.1-blue)](CHANGELOG.md) [![Tests](https://img.shields.io/badge/tests-500%2F500-brightgreen)](tests/) [![Security](https://img.shields.io/badge/security-sandbox_recommended-orange)](README.md#安全声明)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-466%2F466-brightgreen)](#测试矩阵)
@@ -14,7 +28,7 @@
 
 参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。核心理念是用**自然语言**直接驱动 GIS 操作：一句话完成从数据加载、空间分析到制图输出的完整流水线。
 
-**v3.1.0 重点更新：** 新增 Ollama 本地大模型支持（无需 API Key，支持 qwen3 / qwen3.5 / llama4 / deepseek-r1/v3.1 / gemma3 等最新模型离线部署）；新增对话驱动 Profile 更新（自动从对话中提取用户偏好并更新 user.md，安全字段全程锁定），466/466 测试全绿。
+**v3.1.1 重点更新：** 新增 Ollama 本地大模型支持（无需 API Key，支持 qwen3 / qwen3.5 / llama4 / deepseek-r1/v3.1 / gemma3 等最新模型离线部署）；新增对话驱动 Profile 更新（自动从对话中提取用户偏好并更新 user.md，安全字段全程锁定），466/466 测试全绿。
 
 ---
 

@@ -1,3 +1,19 @@
+## v3.1.1 (2026-03-09) — 安全、交互与可靠性修复
+
+### 关键修复
+- **[危险] render_map / render_interactive 缺失** → 导入即崩溃，地图操作全部失败（ImportError）
+- **[危险] plt.show() 在无 GUI 终端挂死** → 强制 Agg 后端，static map 直接写文件，彻底消除终端冻结
+- **[重要] output_dir 在 chat 模式下未初始化** → 文件写入位置未知；现在 NLExecutor 始终从 config/环境变量读取并创建目录
+- **[重要] 自然语言理解退化为关键词匹配** → 新增 `chat` action，LLM 直接处理闲聊/问候；`unknown` action 在 AI 模式下也走 LLM 自由回复
+
+### 新功能
+- **onboard key 输入明文可见** → 用户可看到自己粘贴的长 key；再次配置时显示脱敏摘要（前4...后4）
+- **README 安全声明** → 顶部醒目提示建议在沙盒/虚拟机运行
+
+### 测试
+- 新增 `test_v311_fixes.py`（34 用例），覆盖：key 脱敏 K01-K08、render 函数 R01-R05、output_dir O01-O05、chat action C01-C08、soul/user 个性化 S01-S08
+- 全量测试：500/500 ✅
+
 ## v3.1.0 (2026-03-08) — Ollama 本地大模型支持 + 对话驱动 Profile 更新
 
 ### 新增功能

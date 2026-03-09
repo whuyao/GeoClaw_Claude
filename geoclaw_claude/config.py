@@ -157,7 +157,11 @@ class Config:
     def summary(self) -> str:
         """返回配置摘要（隐藏敏感信息）。"""
         def mask(v: str) -> str:
-            return v[:4] + "****" + v[-4:] if len(v) > 12 else ("****" if v else "(未设置)")
+            if not v: return "(未设置)"
+            v = v.strip()
+            show = 4
+            if len(v) <= show * 2: return v[:2] + "***"
+            return f"{v[:show]}...{v[-show:]}"
 
         def provider_label() -> str:
             if self.llm_provider:

@@ -12,9 +12,9 @@ Ollama（本地大模型）的 API 调用，对外暴露统一接口 LLMProvider
 支持的 Provider:
   - anthropic : Claude 系列（claude-sonnet-4-20250514 等）
   - openai    : GPT-4o / GPT-4o-mini 等，以及任意 OpenAI 兼容 API
-  - qwen      : 通义千问（qwen-max / qwen-plus / qwen-turbo），OpenAI 兼容接口
+  - qwen      : 通义千问 Qwen3/Qwen3.5 系列（qwen3-235b-a22b / qwen3-8b 等），OpenAI 兼容接口
   - gemini    : Google Gemini（gemini-2.0-flash / gemini-1.5-pro 等）
-  - ollama    : 本地大模型（llama3 / qwen2.5 / deepseek-r1 等），无需 API Key
+  - ollama    : 本地大模型（qwen3 / llama4 / deepseek-r1 / gemma3 等），无需 API Key
 
 Provider 选择优先级（自动模式）:
   1. 已设置 anthropic_api_key → anthropic
@@ -26,10 +26,10 @@ Provider 选择优先级（自动模式）:
 
 Ollama 快速上手:
   # 安装并启动 Ollama 服务（默认端口 11434）
-  # 拉取模型: ollama pull llama3 / qwen2.5 / deepseek-r1 等
+  # 拉取模型: ollama pull qwen3:8b / qwen3.5:35b-a3b / deepseek-r1:7b 等
   # 在 geoclaw config 中设置:
   #   ollama_base_url = "http://localhost:11434"
-  #   ollama_model    = "llama3"          # 或 qwen2.5, deepseek-r1:7b ...
+  #   ollama_model    = "qwen3:8b"        # 或 qwen3.5:35b-a3b, deepseek-r1:7b ...
   #   llm_provider    = "ollama"          # 可选: 强制使用 ollama
   # Ollama 使用 OpenAI 兼容接口，无需 API Key（api_key 自动设为 "ollama"）
 
@@ -61,34 +61,94 @@ OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_MODELS = {
     PROVIDER_ANTHROPIC: "claude-sonnet-4-20250514",
     PROVIDER_OPENAI:    "gpt-4o-mini",
-    PROVIDER_QWEN:      "qwen-plus",
+    PROVIDER_QWEN:      "qwen3-235b-a22b",   # Qwen3 旗舰 MoE，2025-04 发布
     PROVIDER_GEMINI:    "gemini-2.0-flash",
-    PROVIDER_OLLAMA:    "llama3",
+    PROVIDER_OLLAMA:    "qwen3:8b",           # Ollama 默认：Qwen3 8B（中文友好，推理强）
 }
 
 # Gemini 可用模型列表（供 onboard 提示）
 GEMINI_MODELS = [
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
+    "gemini-2.5-flash-preview",
+    "gemini-2.5-pro-preview",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-2.5-pro-preview-03-25",
+]
+
+# Qwen API 可用模型列表（供 onboard 提示）
+# Qwen3 系列：2025-04 发布，支持思考模式/非思考模式双模、119 种语言
+# Qwen3.5 系列：2026-02 发布，原生多模态 MoE
+QWEN_MODELS = [
+    # ── Qwen3 Dense（轻量部署）──────────────────────────
+    "qwen3-0.6b",
+    "qwen3-1.7b",
+    "qwen3-4b",
+    "qwen3-8b",
+    "qwen3-14b",
+    "qwen3-32b",
+    # ── Qwen3 MoE（高性能）──────────────────────────────
+    "qwen3-30b-a3b",        # 30B 总参数 / 3B 激活，超越 QwQ-32B
+    "qwen3-235b-a22b",      # 旗舰 MoE，对标 DeepSeek-R1 / GPT-o3
+    # ── Qwen3 更新版本（2025-07）────────────────────────
+    "qwen3-instruct-2507",
+    "qwen3-thinking-2507",
+    # ── Qwen3.5（2026-02，原生多模态 MoE）──────────────
+    "qwen3.5-397b-a17b",    # Qwen3.5 旗舰 MoE（2026-02，原生多模态）
+    # ── Qwen3.5 中等系列（2026-02-24，Gated DeltaNet + MoE 混合架构）──
+    "qwen3.5-35b-a3b",      # 35B 总 / 3B 激活，性能超越 Qwen3-235B-A22B，8 GB+ VRAM
+    "qwen3.5-27b",          # 27B Dense，均衡，22 GB+ VRAM
+    "qwen3.5-122b-a10b",    # 122B 总 / 10B 激活，工具调用最强，BFCL-V4 第一
+    # ── Qwen3.5 小系列（2026-02，Ollama 原生支持）───────
+    "qwen3.5-9b",
+    "qwen3.5-4b",
+    "qwen3.5-2b",
+    "qwen3.5-0.8b",
+    # ── 旧版保留（部分场景兼容）──────────────────────────
+    "qwen2.5-72b-instruct",
+    "qwen2.5-14b-instruct",
+    "qwen-plus",            # DashScope 标准 API 别名
+    "qwen-turbo",
+    "qwen-max",
 ]
 
 # Ollama 常用模型列表（供 onboard 提示）
+# 截至 2026-03，基于 https://ollama.com/library 整理
 OLLAMA_MODELS = [
-    "llama3",
-    "llama3.1",
-    "llama3.2",
-    "qwen2.5",
-    "qwen2.5:7b",
-    "qwen2.5:14b",
-    "deepseek-r1",
-    "deepseek-r1:7b",
+    # ── Qwen3（推荐，中文支持最佳，推理强）──────────────
+    "qwen3:8b",             # 推荐默认，平衡性能/资源
+    "qwen3:4b",             # 轻量，可在 4 GB RAM 上运行
+    "qwen3:14b",            # 高质量，需 10 GB+ VRAM
+    "qwen3:32b",            # 旗舰 Dense，需 24 GB+ VRAM
+    "qwen3:30b-a3b",        # MoE，激活参数仅 3B，效率高
+    # ── Qwen3.5 中等系列（2026-02，混合架构，性能超越 Qwen3 旗舰）──
+    "qwen3.5:35b-a3b",      # 3B 激活，8 GB+ VRAM，性价比旗舰，推荐服务器部署
+    "qwen3.5:27b",          # 27B Dense，256K 上下文，22 GB+ VRAM
+    "qwen3.5:122b-a10b",    # 122B 总 / 10B 激活，工具调用第一，需 40 GB+ VRAM
+    # ── Qwen3.5 小系列（2026-02，Ollama 原生支持，多模态）──
+    "qwen3.5:9b",           # 推荐轻量默认，12 GB RAM 即可
+    "qwen3.5:4b",
+    "qwen3.5:2b",
+    "qwen3.5:0.8b",         # 极轻量，边缘设备
+    # ── LLaMA 4（Meta，2025，原生多模态）────────────────
+    "llama4:scout",         # 17B 激活 / 109B 总参数 MoE，10M 上下文
+    "llama4:maverick",      # 17B 激活 / 400B 总参数 MoE
+    # ── LLaMA 3.x（稳定，生态成熟）─────────────────────
+    "llama3.3:70b",         # 128K 上下文，高质量通用助手
+    "llama3.2:3b",          # 超轻量，笔记本可用
+    # ── DeepSeek（推理强，代码强）────────────────────────
+    "deepseek-r1:7b",       # R1 蒸馏，推理链条，适合 SRE 分析
     "deepseek-r1:14b",
-    "mistral",
-    "gemma3",
-    "phi4",
+    "deepseek-r1:32b",
+    "deepseek-v3.1",        # V3.1（2025-08）：思考/非思考双模，SWE-bench 第一
+    # ── Gemma 3（Google，轻量多模态）──────────────────
+    "gemma3:4b",            # 支持图文，轻量
+    "gemma3:12b",           # 128K 上下文
+    "gemma3:27b",           # 旗舰，需 20 GB+ VRAM
+    # ── Mistral Small 3.1（高效，128K）────────────────
+    "mistral-small3.1:24b",
+    # ── Phi-4（微软，14B 高性能小模型）────────────────
+    "phi4:14b",
 ]
 
 

@@ -294,10 +294,11 @@ def render_interactive(layers, title: str = "GeoClaw-claude 交互地图") -> st
     """
     import tempfile, os
 
-    m = InteractiveMap(title=title)
+    m = InteractiveMap()
     for layer in layers:
         m.add_layer(layer)
     m.build()
+    # InteractiveMap 不支持 title 参数，title 仅用于文件命名
 
     tmp = tempfile.NamedTemporaryFile(
         suffix=".html", prefix="geoclaw_map_", delete=False
