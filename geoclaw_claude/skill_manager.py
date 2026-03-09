@@ -165,6 +165,64 @@ class SkillContext:
         )
         return msg.content[0].text
 
+
+    # ── 本地工具接口 ──────────────────────────────────────────────────────────
+
+    def run_tool(self, tool: str, **kwargs) -> "ToolResult":
+        """
+        在 Skill 内执行本地工具。
+
+        Example::
+
+            result = ctx.run_tool("shell", cmd="wc -l data/*.csv")
+            result = ctx.run_tool("file_find", pattern="*.geojson", root="~/data")
+            result = ctx.run_tool("http_get", url="https://api.example.com/pois")
+
+        Args:
+            tool   : 工具名（shell/exec/file_read/file_write/file_find/file_list/
+                              http_get/http_post/curl/sys_info/sys_processes/sys_disk/sys_env）
+            **kwargs: 工具参数
+
+        Returns:
+            ToolResult（.success .output .error .metadata）
+        """
+        from geoclaw_claude.tools import LocalToolKit, ToolPermission
+        kit = LocalToolKit(
+            permission=ToolPermission.FULL if self._cfg.tool_permission == "full"
+                       else ToolPermission.SANDBOX
+        )
+        return kit.run(tool, **kwargs)
+
+    def react(self, task: str, max_steps: int = 10) -> str:
+        """
+        在 Skill 内启动 ReAct 智能体完成复杂任务。
+
+        Example::
+
+            answer = ctx.react("统计 output_dir 下所有 geojson 的要素总数")
+
+        Args:
+            task     : 自然语言任务描述
+            max_steps: 最大步数
+
+        Returns:
+            最终答案文本
+        """
+        from geoclaw_claude.tools import LocalToolKit, ToolPermission, ReActAgent
+        from geoclaw_claude.nl.llm_provider import LLMProvider
+
+        kit = LocalToolKit(
+            permission=ToolPermission.FULL if self._cfg.tool_permission == "full"
+                       else ToolPermission.SANDBOX
+        )
+        llm = LLMProvider.from_config()
+        if llm is None:
+            raise RuntimeError("ReAct 需要配置 LLM Provider")
+
+        agent = ReActAgent(toolkit=kit, llm=llm, max_steps=max_steps)
+        result = agent.run(task)
+        return result.final_answer
+
     # ── 结果输出 ──────────────────────────────────────────────────────────────
 
     def result(self, **kwargs) -> Dict[str, Any]:

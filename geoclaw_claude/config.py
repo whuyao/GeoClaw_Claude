@@ -59,7 +59,7 @@ class Config:
     qwen_model:        str = "qwen-plus" # Qwen 默认模型
 
     ollama_base_url:   str = "http://localhost:11434/v1"  # Ollama 本地服务地址
-    ollama_model:      str = "llama3"    # Ollama 默认模型（需已 ollama pull）
+    ollama_model:      str = "qwen3:8b"    # Ollama 推荐默认（中文友好，推理强）    # Ollama 默认模型（需已 ollama pull）
 
     llm_provider:      str = ""          # 强制指定 provider（空=自动选择）
                                          # 可选: anthropic / gemini / openai / qwen / ollama
@@ -73,6 +73,7 @@ class Config:
     # ── 安全机制 ──────────────────────────────────────────────────────────────
     security_enabled:       bool = True   # 是否启用安全保护
     security_strict_output: bool = True   # 严格模式：所有输出必须在 output_dir 下
+    tool_permission: str = "sandbox"       # 本地工具权限: full / sandbox / whitelist
     security_verbose:       bool = False  # 是否打印安全审计日志
 
     # ── 数据目录 ──────────────────────────────────────────────────────────────

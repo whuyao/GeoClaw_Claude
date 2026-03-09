@@ -696,7 +696,140 @@ def main():
                 print(f"       {r.snippet[:100]}")
         print()
 
-    # ── profile ─────────────────────────────────────────────────────────────────
+    
+
+    # ── tools ──────────────────────────────────────────────────────────────────
+    @cli.group()
+    def tools():
+        """🔧 本地工具管理与执行。"""
+
+    @tools.command("list")
+    def tools_list():
+        """列出所有可用本地工具。"""
+        from geoclaw_claude.tools import LocalToolKit, ToolPermission
+        kit = LocalToolKit()
+        print("\n可用本地工具：\n")
+        for spec in kit.specs:
+            props = spec.parameters.get("properties", {})
+            req   = spec.parameters.get("required", [])
+            params = ", ".join(
+                f"{k}{'*' if k in req else ''}" for k in props
+            )
+            print(f"  {spec.name:<20} {spec.description}")
+            if params:
+                print(f"  {'':20} 参数: {params}")
+        print()
+
+    @tools.command("permission")
+    @click.argument("mode", type=click.Choice(["full", "sandbox", "whitelist"]))
+    def tools_permission(mode):
+        """设置工具执行权限（full/sandbox/whitelist）。
+
+        \b
+        full      : 完全授权，仅受硬性系统保护限制
+        sandbox   : 拦截危险命令（默认）
+        whitelist : 只允许预配置的命令/路径
+        """
+        from geoclaw_claude.config import Config
+        cfg = Config.load()
+        cfg.tool_permission = mode
+        cfg.save()
+        _ok(f"工具权限已设置为: {mode}")
+        if mode == "full":
+            _warn("完全授权模式：LLM 可执行任意命令（仍受硬性系统保护）。请确认这是你的意图。")
+
+    @tools.command("run")
+    @click.argument("tool_name")
+    @click.argument("params", nargs=-1)
+    def tools_run(tool_name, params):
+        """直接执行指定工具。
+
+        \b
+        示例:
+          geoclaw-claude tools run shell "ls ~/geoclaw_output"
+          geoclaw-claude tools run file_list path=~/data
+          geoclaw-claude tools run sys_info
+          geoclaw-claude tools run http_get url=https://example.com
+        """
+        from geoclaw_claude.tools import LocalToolKit, ToolPermission
+        from geoclaw_claude.config import Config
+
+        cfg = Config.load()
+        perm_map = {"full": ToolPermission.FULL,
+                    "sandbox": ToolPermission.SANDBOX,
+                    "whitelist": ToolPermission.WHITELIST}
+        perm = perm_map.get(cfg.tool_permission, ToolPermission.SANDBOX)
+        kit = LocalToolKit(permission=perm)
+
+        kwargs = {}
+        for p in params:
+            if "=" in p:
+                k, v = p.split("=", 1)
+                kwargs[k] = v
+            else:
+                auto_key = {"shell": "cmd", "exec": "args",
+                            "file_read": "path", "file_write": "path",
+                            "file_find": "pattern", "file_list": "path",
+                            "http_get": "url", "http_post": "url", "curl": "url",
+                            "sys_processes": "filter_name"}.get(tool_name)
+                if auto_key:
+                    kwargs[auto_key] = p
+
+        print(f"\n执行工具: {tool_name}  权限: {cfg.tool_permission}\n")
+        result = kit.run(tool_name, **kwargs)
+
+        if result.success:
+            _ok(f"成功 ({result.duration:.2f}s)")
+            print(result.output)
+        else:
+            _err(f"失败: {result.error}")
+        print()
+
+    @tools.command("react")
+    @click.argument("task")
+    @click.option("--max-steps", "-n", default=12, help="最大推理步数（默认 12）")
+    @click.option("--verbose/--quiet", "-v/-q", default=True, help="显示每步进度")
+    def tools_react(task, max_steps, verbose):
+        """启动 ReAct 智能体执行复杂任务。
+
+        \b
+        示例:
+          geoclaw-claude tools react "查找 ~/data 下最大的 geojson 文件"
+          geoclaw-claude tools react "统计 output 目录下各文件类型的数量"
+        """
+        from geoclaw_claude.tools import LocalToolKit, ToolPermission, ReActAgent
+        from geoclaw_claude.nl.llm_provider import LLMProvider
+        from geoclaw_claude.config import Config
+        from geoclaw_claude.tools.react_agent import ReActAgent as _RA
+
+        cfg  = Config.load()
+        perm = {"full": ToolPermission.FULL,
+                "sandbox": ToolPermission.SANDBOX}.get(cfg.tool_permission, ToolPermission.SANDBOX)
+        kit  = LocalToolKit(permission=perm)
+        llm  = LLMProvider.from_config()
+
+        if llm is None:
+            _err("未配置 LLM Provider。请运行 geoclaw-claude onboard 配置 API Key。")
+            return
+
+        agent = _RA(toolkit=kit, llm=llm, max_steps=max_steps, verbose=verbose)
+
+        print(f"\n任务: {task}")
+        print(f"权限: {cfg.tool_permission}  最大步数: {max_steps}\n")
+        print("─" * 60)
+
+        result = agent.run(task)
+
+        print("─" * 60)
+        print(f"\n步骤: {len(result.steps)}  耗时: {result.total_duration:.2f}s")
+        if result.max_steps_reached:
+            _warn("已达最大步数限制")
+        _ok("最终结论:") if result.success else _err("任务未完成:")
+        print(result.final_answer)
+        print()
+
+
+# ── profile ─────────────────────────────────────────────────────────────────
     @cli.group()
     def profile():
         """👤 管理 soul.md / user.md 个性化配置层。

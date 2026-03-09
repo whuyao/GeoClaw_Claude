@@ -94,6 +94,8 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 | memory_status | 查看记忆状态 | (无参数) |
 | memory_search | 搜索记忆 | query(关键词) |
 | help | 帮助信息 | topic(可选主题) |
+| tool_run | 执行本地工具 | tool(工具名), 工具参数... |
+| react   | ReAct智能体完成复杂任务 | task(任务描述), max_steps(可选,默认12) |
 | chat    | 自由对话/闲聊 | reply(回复文本) |
 | unknown | 无法识别 | reason(说明) |
 | mobility_load | 读入GPS轨迹/移动性数据 | path(文件路径), user_id_col, tracked_at_col |
@@ -140,6 +142,9 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 - 距离单位：默认 meters；"公里/km/千米" → km；"米/m" → meters
 - 如果用户没有指定图层名，从上下文猜测（如"医院" → hospitals）
 - 置信度：确定 ≥0.9，较确定 0.7~0.9，不确定 <0.7
+- tool_run 示例: "查找 ~/data 下所有 geojson 文件" → action="tool_run", params={"tool":"file_find","pattern":"*.geojson","root":"~/data"}
+- tool_run 示例: "执行 ls ~/geoclaw_output" → action="tool_run", params={"tool":"shell","cmd":"ls ~/geoclaw_output"}
+- react 示例: "帮我分析 output 目录里的数据文件，统计各类型数量" → action="react", params={"task":"..."}
 - **重要**：对于非 GIS 操作的输入（问候、闲聊、感谢、提问等），使用 action="chat"，
   在 params.reply 中用中文直接回复，不要返回 unknown。
   例如 "你好" → {"action":"chat","params":{"reply":"你好！我是 GeoClaw，有什么 GIS 分析需要帮忙？"},"targets":[],"confidence":1.0,"explanation":"问候"}

@@ -113,6 +113,10 @@ class NLExecutor:
         except Exception:
             pass
 
+        # LLM 引用（供 ReAct 使用，由外部注入）
+        self._llm = None
+        self._toolkit = None
+
         # Memory 集成
         self._mem = None
         try:
@@ -347,6 +351,15 @@ class NLExecutor:
                 return [{"id": e.id, "title": e.title, "importance": e.importance}
                         for e in results]
             return []
+
+
+        # ── 本地工具调用（直接触发）────────────────────────────────────────────
+        if a == "tool_run":
+            return self._do_tool_run(p)
+
+        # ── ReAct 智能体（自动工具链）──────────────────────────────────────────
+        if a == "react":
+            return self._do_react(p)
 
         if a == "help":
             return self._do_help(p)
@@ -781,6 +794,8 @@ class NLExecutor:
                 return result.get("summary", "版本检测完成") if isinstance(result, dict) else str(result)
             if a == "help":
                 return result.get("help", "")[:80] + "..." if isinstance(result, dict) else str(result)
+            if a in ("tool_run", "react"):
+                return result.get("answer", result.get("output", "工具执行完成"))[:100] if isinstance(result, dict) else str(result)
             if a.startswith("mobility_"):
                 return f"{a.replace('mobility_', '')} 完成"
             return intent.explanation or f"{a} 完成"
@@ -802,3 +817,68 @@ class NLExecutor:
     def __repr__(self) -> str:
         return (f"NLExecutor(layers={self.list_layers()}, "
                 f"history={len(self._history)}步)")
+
+    # ── 本地工具方法 ──────────────────────────────────────────────────────────
+
+    def _get_toolkit(self):
+        """获取（或懒初始化）LocalToolKit。"""
+        if not hasattr(self, "_toolkit") or self._toolkit is None:
+            from geoclaw_claude.tools import LocalToolKit, ToolPermission
+            from geoclaw_claude.config import Config
+            cfg = Config.load()
+            perm_str = getattr(cfg, "tool_permission", "sandbox")
+            perm_map = {
+                "full":      ToolPermission.FULL,
+                "sandbox":   ToolPermission.SANDBOX,
+                "whitelist": ToolPermission.WHITELIST,
+            }
+            perm = perm_map.get(perm_str.lower(), ToolPermission.SANDBOX)
+            self._toolkit = LocalToolKit(permission=perm)
+        return self._toolkit
+
+    def _do_tool_run(self, p: dict) -> Any:
+        """
+        直接执行单个本地工具。
+        intent params: tool(工具名), 其余参数透传给工具。
+        """
+        tool_name = p.pop("tool", "")
+        if not tool_name:
+            raise ValueError("请指定工具名，例如：tool=shell, cmd='ls ~'")
+        kit = self._get_toolkit()
+        result = kit.run(tool_name, **p)
+        if not result.success:
+            raise ValueError(f"工具 [{tool_name}] 执行失败: {result.error}")
+        return {"tool": tool_name, "output": result.output,
+                "duration": result.duration, "metadata": result.metadata}
+
+    def _do_react(self, p: dict) -> Any:
+        """
+        启动 ReAct 智能体，自动链式调用工具完成任务。
+        intent params: task(任务描述), max_steps(可选)
+        """
+        task = p.get("task", "")
+        if not task:
+            raise ValueError("请描述任务，例如：统计 ~/geoclaw_output 下的 geojson 文件数量")
+        max_steps = int(p.get("max_steps", 12))
+
+        kit = self._get_toolkit()
+        # 获取 LLM provider
+        llm = getattr(self, "_llm", None)
+        if llm is None:
+            # 尝试从 processor 读取
+            raise ValueError(
+                "ReAct 模式需要配置 LLM。请运行 geoclaw-claude onboard 设置 API Key。"
+            )
+
+        from geoclaw_claude.tools.react_agent import ReActAgent
+        agent = ReActAgent(toolkit=kit, llm=llm, max_steps=max_steps, verbose=True)
+        result = agent.run(task)
+
+        return {
+            "task":    result.task,
+            "answer":  result.final_answer,
+            "steps":   len(result.steps),
+            "success": result.success,
+            "duration": result.total_duration,
+        }
+
