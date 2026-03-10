@@ -44,7 +44,10 @@ def run(ctx):
     if weight_col:
         print(f"  权重字段   : {weight_col}")
 
-    kwargs = dict(bandwidth=bandwidth, resolution=resolution)
+    # resolution（米）→ grid_size（格数），kde底层只接受 grid_size
+    # 估算：grid_size ≈ 区域跨度(米) / resolution，最小50，最大500
+    grid_size = int(ctx.param("grid_size", 0)) or max(50, min(500, int(100 * 500 / max(resolution, 1))))
+    kwargs = dict(bandwidth=bandwidth, grid_size=grid_size)
     if weight_col:
         kwargs["weight_col"] = weight_col
 

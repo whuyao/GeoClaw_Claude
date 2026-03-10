@@ -265,6 +265,24 @@ class GeoAgent:
                 # render 结果已在 message 中显示，跳过
                 if intent.action in ("render", "render_interactive"):
                     pass
+                # skill_run 返回 dict：只显示图层摘要行，跳过大字段（report/density矩阵等）
+                elif intent.action == "skill_run":
+                    from geoclaw_claude.core.layer import GeoLayer as _GL
+                    for k, v in result.items():
+                        if isinstance(v, _GL):
+                            lines.append(f"  {k}: {repr(v)}")
+                        elif isinstance(v, str) and len(v) > 120:
+                            # 长字符串（报告文本）只取前两行
+                            preview = v.strip().split("\n")[0][:80]
+                            lines.append(f"  {k}: {preview}…")
+                        elif isinstance(v, dict) and ("grid" in v or "xx" in v):
+                            pass  # 跳过密度矩阵 dict
+                        elif callable(v):
+                            pass
+                        elif hasattr(v, "__len__") and not isinstance(v, str) and len(v) > 20:
+                            pass  # 跳过大型数组
+                        else:
+                            lines.append(f"  {k}: {v}")
                 # KDE / 栅格结果特殊处理：只显示摘要，不输出原始矩阵
                 elif "grid" in result and "extent" in result:
                     import numpy as np

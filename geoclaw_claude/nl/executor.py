@@ -756,20 +756,41 @@ class NLExecutor:
         def _is_kde(obj):
             return isinstance(obj, dict) and "grid" in obj and "extent" in obj
 
+        from geoclaw_claude.core.layer import GeoLayer as _GL
+        def _is_renderable(obj):
+            """只有 GeoLayer 才可以渲染，过滤掉 dict/str/None"""
+            return isinstance(obj, _GL)
+
         layers = []
         for name in (t or []):
             layer = self.get_layer(name)
-            if layer is not None:
+            if layer is not None and _is_renderable(layer):
                 layers.append(layer)
+            elif layer is not None and isinstance(layer, dict):
+                # skill 返回的 dict 里可能有 GeoLayer，提取出来
+                for v in layer.values():
+                    if _is_renderable(v):
+                        layers.append(v)
+                        break
         if not layers and self._last_result is not None:
             last = self._last_result
             if _is_kde(last):
                 return self._render_kde(last, p)
-            layers = [last]
+            if _is_renderable(last):
+                layers = [last]
+            elif isinstance(last, dict):
+                for v in last.values():
+                    if _is_renderable(v):
+                        layers.append(v)
+                        break
         if not layers:
             for v in list(self._layers.values()):
                 if _is_kde(v):
                     return self._render_kde(v, p)
+                if _is_renderable(v):
+                    layers.append(v)
+            if layers:
+                layers = layers[:3]  # 最多取3个图层
         if not layers:
             raise ValueError("没有可制图的图层，请先加载或分析数据")
         title = p.get("title", "GeoClaw-claude 地图")
@@ -1157,9 +1178,30 @@ class NLExecutor:
         # 将 executor 中所有图层注入 SkillContext
         for lname, layer in self._layers.items():
             ctx._layers[lname] = layer
-            ctx._layers["input"] = layer  # 最后一个作为 default input
         # 注入参数
         ctx._params = skill_params
+        # Bug修复: 图层别名映射 —— 若参数值是已知图层名，在ctx中建立别名
+        # 例如 zones="pop_grid" → ctx._layers["zones"] = ctx._layers["pop_grid"]
+        _known_layers = set(self._layers.keys())
+        _primary_layer = None  # 主图层，设为 input
+        for param_key, param_val in skill_params.items():
+            if isinstance(param_val, str) and param_val in _known_layers:
+                ctx._layers[param_key] = self._layers[param_val]
+                # 第一个图层参数作为主图层
+                if _primary_layer is None:
+                    _primary_layer = self._layers[param_val]
+        # 设定 input：优先用 skill_params 里明确的 layer/input/candidates 参数
+        _input_keys = ["layer", "input", "candidates", "hospitals", "points"]
+        for k in _input_keys:
+            if k in skill_params and skill_params[k] in _known_layers:
+                ctx._layers["input"] = self._layers[skill_params[k]]
+                break
+        else:
+            # 否则用第一个别名映射的图层，或最后一个加载的图层
+            if _primary_layer is not None:
+                ctx._layers["input"] = _primary_layer
+            elif self._layers:
+                ctx._layers["input"] = list(self._layers.values())[-1]
         # 注入 LLM 并 patch ask_ai
         if llm is not None:
             ctx._llm = llm
@@ -1169,11 +1211,15 @@ class NLExecutor:
                 if context_data:
                     full = f"{prompt}\n\n数据背景:\n{context_data}"
                 try:
-                    return _llm_ref.chat([{"role": "user", "content": full}])
+                    resp = _llm_ref.chat([{"role": "user", "content": full}])
+                    # LLMResponse 对象需要取 .content；若已是字符串直接返回
+                    if hasattr(resp, "content"):
+                        return resp.content or ""
+                    return str(resp)
                 except Exception as e:
                     return f"(AI 调用失败: {e})"
             import types
-            ctx.ask_ai = types.MethodType(lambda self, p, c=None: _ask_ai_patched(p, c), ctx)
+            ctx.ask_ai = types.MethodType(lambda self, p, context_data=None: _ask_ai_patched(p, context_data), ctx)
 
         sm = SkillManager()
         result = sm.run(skill_name, ctx)
@@ -1181,12 +1227,24 @@ class NLExecutor:
         # 把输出图层注册到当前 executor 会话
         if result and isinstance(result, dict):
             from geoclaw_claude.core.layer import GeoLayer
+            _first_layer = None
             for key, val in result.items():
                 try:
                     if isinstance(val, GeoLayer):
-                        self.add_layer(f"{skill_name}_{key}", val)
+                        reg_name = f"{skill_name}_{key}"
+                        self.add_layer(reg_name, val)
+                        if _first_layer is None:
+                            _first_layer = (reg_name, val)
                 except Exception:
                     pass
+            # 额外注册两个通用别名方便 pipeline 中引用
+            if _first_layer:
+                self.add_layer(f"{skill_name}_result", _first_layer[1])
+                self.add_layer(f"{skill_name}_output", _first_layer[1])
+        elif result is not None:
+            from geoclaw_claude.core.layer import GeoLayer
+            if isinstance(result, GeoLayer):
+                self.add_layer(f"{skill_name}_result", result)
 
         return result
 

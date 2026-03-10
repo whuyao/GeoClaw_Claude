@@ -33,8 +33,15 @@ SKILL_META = {
 def run(ctx):
     from geoclaw_claude.analysis.spatial_ops import zonal_stats
 
-    zones     = ctx.get_layer("zones")
-    values    = ctx.get_layer("values")
+    # 兼容多种图层名：zones/regions/area；values/points/target/input
+    def _get_layer_flexible(ctx, *names):
+        for n in names:
+            try: return ctx.get_layer(n)
+            except KeyError: pass
+        raise KeyError(f"找不到图层，已尝试: {names}")
+
+    zones  = _get_layer_flexible(ctx, "zones", "regions", "area", "zone_layer")
+    values = _get_layer_flexible(ctx, "values", "points", "target", "input", "point_layer")
     stats_str = str(ctx.param("stats", "count"))
     value_col = str(ctx.param("value_col", "")).strip() or None
 
@@ -43,7 +50,8 @@ def run(ctx):
     print(f"  统计目标数 : {len(values)}")
     print(f"  统计项     : {stats_list}")
 
-    kwargs = dict(stats=stats_list)
+    # 底层 zonal_stats 只接受单个 stat 字符串，取列表第一项
+    kwargs = dict(stat=stats_list[0] if stats_list else "count")
     if value_col:
         kwargs["value_col"] = value_col
 
