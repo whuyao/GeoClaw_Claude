@@ -88,6 +88,7 @@ class NLExecutor:
         self._layers: Dict[str, Any] = {}          # 图层上下文（name → GeoLayer）
         self._history: List[ExecutionResult] = []   # 执行历史
         self._last_result: Any = None               # 上一步结果
+        self._kde_cache: Dict[str, Any] = {}       # KDE 栅格数据缓存（out_name → dict）
 
         # 输出目录：参数 > 环境变量 > 配置文件 > 默认 ~/geoclaw_output
         import os as _os
@@ -457,7 +458,8 @@ class NLExecutor:
         if mask is None:
             raise ValueError(f"找不到裁剪边界图层 '{mname}'")
         result = clip(layer, mask)
-        self.add_layer(f"{lname or 'layer'}_clipped", result)
+        out_name = p.get("output_name") or p.get("name") or f"{lname or 'layer'}_clipped"
+        self.add_layer(out_name, result)
         return result
 
     def _do_intersect(self, p: dict, t: list) -> Any:
@@ -466,7 +468,8 @@ class NLExecutor:
         lb = self._resolve_layer(p.get("layer_b", "") or (t[1] if len(t) > 1 else ""),
                                   fallback_last=False)
         result = intersect(la, lb)
-        self.add_layer("intersect_result", result)
+        out_name = p.get("output_name") or p.get("name") or "intersect_result"
+        self.add_layer(out_name, result)
         return result
 
     def _do_union(self, p: dict, t: list) -> Any:
@@ -475,7 +478,8 @@ class NLExecutor:
         lb = self._resolve_layer(p.get("layer_b", "") or (t[1] if len(t) > 1 else ""),
                                   fallback_last=False)
         result = union(la, lb)
-        self.add_layer("union_result", result)
+        out_name = p.get("output_name") or p.get("name") or "union_result"
+        self.add_layer(out_name, result)
         return result
 
     def _do_nearest_neighbor(self, p: dict, t: list) -> Any:
@@ -508,7 +512,24 @@ class NLExecutor:
         layer = self._resolve_layer(lname)
         bw    = float(p.get("bandwidth", 0.05))
         gs    = int(p.get("grid_size",  100))
-        return kde(layer, bandwidth=bw, grid_size=gs)
+        result = kde(layer, bandwidth=bw, grid_size=gs)
+        # KDE 返回 dict（grid/xx/yy/extent），注册为命名缓存供后续步骤引用
+        out_name = p.get("output_name") or p.get("name") or f"{lname}_kde"
+        self._kde_cache[out_name] = result
+        # 同时在 layers 中注册一个占位 GeoLayer（仅含边界点），供图层列表可见
+        import geopandas as gpd, numpy as np
+        from shapely.geometry import Point
+        from geoclaw_claude.core.layer import GeoLayer
+        ext = result.get("extent", (0, 0, 1, 1))
+        placeholder_gdf = gpd.GeoDataFrame(
+            {"kde_name": [out_name], "bandwidth": [bw], "grid_size": [gs]},
+            geometry=[Point((ext[0]+ext[2])/2, (ext[1]+ext[3])/2)],
+            crs="EPSG:4326"
+        )
+        kde_layer = GeoLayer(placeholder_gdf, name=out_name, source="kde")
+        kde_layer._kde_data = result  # 附加原始 KDE 数据
+        self.add_layer(out_name, kde_layer)
+        return result
 
     def _do_zonal_stats(self, p: dict, t: list) -> Any:
         from geoclaw_claude.analysis.spatial_ops import zonal_stats
@@ -518,9 +539,26 @@ class NLExecutor:
         points = self._resolve_layer(pname, fallback_last=False)
         if points is None:
             raise ValueError(f"找不到点图层 '{pname}'")
-        stat   = p.get("stat", "count")
-        result = zonal_stats(zones, points, stat=stat)
-        self.add_layer("zonal_result", result)
+        stat      = p.get("stat", "count")
+        value_col = p.get("value_col") or p.get("value_field") or p.get("field")
+        # 自动推断 value_col：当 stat != 'count' 且未指定字段时，
+        # 从 points 图层里取第一个数值列
+        if stat != "count" and value_col is None:
+            import numpy as np
+            num_cols = [c for c in points.data.columns
+                        if points.data[c].dtype.kind in ("i", "f", "u")
+                        and c not in ("geometry",)]
+            if num_cols:
+                value_col = num_cols[0]
+                print(f"  ↳ 自动推断统计字段: {value_col}")
+            else:
+                raise ValueError(
+                    f"stat='{stat}' 需要数值字段，"
+                    f"图层 '{pname}' 无数值列。请用 value_col 参数指定字段名。"
+                )
+        out_name = p.get("output_name") or p.get("name") or "zonal_result"
+        result = zonal_stats(zones, points, stat=stat, value_col=value_col)
+        self.add_layer(out_name, result)
         return result
 
     def _do_calculate_area(self, p: dict, t: list) -> Any:

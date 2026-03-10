@@ -81,7 +81,7 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 | nearest_neighbor | 最近邻分析 | source(源图层), target(目标图层), output_name(可选) |
 | spatial_join | 空间连接 | source, target, how(left/inner), predicate(intersects/within), output_name(可选) |
 | kde | 核密度分析 | layer, bandwidth(默认0.05), grid_size(默认100), output_name(可选) |
-| zonal_stats | 分区统计 | zones(区域图层), points(点图层), stat(count/sum/mean), output_name(可选) |
+| zonal_stats | 分区统计 | zones(区域图层), points(点/面图层), stat(count/sum/mean/max/min,默认count), value_col(可选,数值字段名,stat!=count时自动从图层推断), output_name(可选) |
 | calculate_area | 面积计算 | layer, unit(m2/km2/ha) |
 | network_build | 构建路网 | bbox或layer, network_type(drive/walk/bike) |
 | isochrone | 等时圈 | center(经纬度，格式"lon,lat"如"114.30,30.60"；若用户写"经度X，纬度Y"则center="X,Y"；或拆分为lon和lat字段), minutes(时间列表), network_type, output_name(可选), graph_file(可选,用户指定本地路网graphml文件路径时填入) |
@@ -150,9 +150,20 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
   - "做 union 合并" → action="union"（单步）
   - "按区县统计各类面积" → action="zonal_stats"（单步，zones=区县图层, points=目标图层）
   - 只有当用户明确要求"先...再..."多步流程时，才用 pipeline
+  - "对A做X，同时对B做Y，然后一起渲染" → pipeline，步骤为 [X(A), Y(B), render]
+    示例: "对医院做KDE(结果叫h_kde)，对公园做200米缓冲(结果叫p_buf)，然后一起显示静态地图"
+    → pipeline steps: [{kde, targets:[hospitals], output_name:h_kde}, {buffer, distance:200, targets:[parks], output_name:p_buf}, {render, targets:[h_kde, p_buf]}]
+  - 当用户在一句话里要求针对不同图层的多个操作时，每个操作都必须成为独立步骤，不能省略任何操作
 - overlay 操作映射：intersect/相交 → action="intersect"；union/合并 → action="union"；clip/裁剪 → action="clip"
+- **pipeline 渲染步骤**：如果用户要求"最后显示/画地图/生成地图"，必须在 steps 末尾加上 render 或 render_interactive 步骤，不能省略
+  示例: "...最后把 A 和 B 显示在静态地图上" → 最后一步: {"action":"render","params":{"title":""},"targets":["A","B"]}
+  示例: "...最后生成交互地图" → 最后一步: {"action":"render_interactive","params":{},"targets":["<前一步结果>"]}
 - zonal_stats 用于"按区域统计"、"分区统计"、"各区/各县统计"等场景，不要映射到 react
 - tool_run 示例: "查找 ~/data 下所有 geojson 文件" → action="tool_run", params={"tool":"file_find","pattern":"*.geojson","root":"~/data"}
+- kde 示例: "对 hospitals 做核密度分析" → action="kde", params={"layer":"hospitals"}
+- kde + output_name 示例: "对 hospitals 做核密度分析，结果图层名叫 hosp_kde" → action="kde", params={"layer":"hospitals","output_name":"hosp_kde"}
+- kde + output_name 示例2: "对公园做核密度（结果叫 park_kde）" → action="kde", params={"layer":"parks","output_name":"park_kde"}
+- 规则: 当用户提到"结果叫/存为/命名为/图层名叫 X"，必须将 X 填入 output_name
 - isochrone 示例: "以某点（经度114.3664，纬度30.5340）为中心，步行5和10分钟等时圈" → action="isochrone", params={"center":"114.3664,30.5340","minutes":[5,10],"network_type":"walk"}
 - isochrone 示例: "以(114.30, 30.60)为中心，10分钟等时圈" → action="isochrone", params={"center":"114.30,30.60","minutes":[10],"network_type":"walk"}
 - isochrone + graph_file 示例: "以（114.3665, 30.5403）为中心，用本地路网文件 /tmp/x.graphml，计算步行5和10分钟等时圈" → action="isochrone", params={"center":"114.3665,30.5403","minutes":[5,10],"network_type":"walk","graph_file":"/tmp/x.graphml"}
@@ -512,9 +523,13 @@ class NLProcessor:
             layer = self._extract_layer_name(text) or ctx.get("last_layer", "")
             bw    = self._extract_number_with_keyword(text, ["带宽", "bandwidth"], 0.05)
             gs    = int(self._extract_number_with_keyword(text, ["网格", "grid"], 100))
+            out_name = self._extract_output_name(text)
+            params = {"layer": layer, "bandwidth": bw, "grid_size": gs}
+            if out_name:
+                params["output_name"] = out_name
             return ParsedIntent(
                 action="kde",
-                params={"layer": layer, "bandwidth": bw, "grid_size": gs},
+                params=params,
                 targets=[layer] if layer else [],
                 confidence=0.88,
                 explanation=f"KDE 核密度: {layer or '(未指定图层)'}",
@@ -804,6 +819,20 @@ class NLProcessor:
         if m:
             return float(m.group(1)), "meters"
         return 1000.0, "meters"  # 默认 1km
+
+    def _extract_output_name(self, text):
+        import re
+        kws = "结果图层名叫|结果叫做|命名为|存为|保存为|图层名叫|叫做|叫"
+        m = re.search("(?:" + kws + r")\s*[A-Za-z_][A-Za-z0-9_]*", text)
+        if m:
+            # 提取最后一个空格后的标识符
+            word = m.group(0).split()[-1]
+            if re.match(r"[A-Za-z_][A-Za-z0-9_]*$", word):
+                return word
+        m2 = re.search(r"output_name[=:]([A-Za-z_][A-Za-z0-9_]*)", text)
+        if m2:
+            return m2.group(1)
+        return ""
 
     def _extract_layer_name(self, text: str) -> str:
         """从文本中猜测图层名称。"""
