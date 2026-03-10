@@ -8,54 +8,36 @@
 >
 > GeoClaw is an AI agent framework with file system access, code execution, and network request capabilities.
 > **It is strongly recommended to run it in a sandboxed environment (VM, Docker container, or a dedicated test machine). Do not deploy directly on your primary workstation.**
->
-> - 出现问题请提交 [GitHub Issue](https://github.com/whuyao/GeoClaw_Claude/issues)
-> - 生产部署请联系 UrbanComp Lab: urbancomp.net
 
-
-
-> **UrbanComp Lab** 出品的轻量级 Python 城市地理信息分析工具集
+> **UrbanComp Lab** 出品的自然语言驱动城市地理信息分析平台
 > https://urbancomp.net
 
-[![Version](https://img.shields.io/badge/version-3.1.2-blue)](CHANGELOG.md) [![Tests](https://img.shields.io/badge/tests-500%2F500-brightgreen)](tests/) [![Security](https://img.shields.io/badge/security-sandbox_recommended-orange)](README.md#安全声明)
+[![Version](https://img.shields.io/badge/version-3.1.3-blue)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-521%2F521-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-500%2F500-brightgreen)](#测试矩阵)
 [![LLM](https://img.shields.io/badge/LLM-Claude%20%7C%20Gemini%20%7C%20GPT%20%7C%20Qwen%20%7C%20Ollama-blueviolet)](#多-llm-provider)
-[![trackintel](https://img.shields.io/badge/mobility-trackintel-9cf)](https://github.com/mie-lab/trackintel)
-[![SRE](https://img.shields.io/badge/SRE-Phase%203%20%E2%9C%85-7B2D8B)](#spatial-reasoning-engine-sre-v300-新增)
-[![Ollama](https://img.shields.io/badge/Ollama-local%20LLM-green)](#ollama-本地大模型支持--v310-新增)
 [![Skills](https://img.shields.io/badge/builtin%20skills-15-success)](#内置-skill-列表)
+[![SRE](https://img.shields.io/badge/SRE-Phase%203-7B2D8B)](#spatial-reasoning-engine-sre)
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-compat%20export-lightgrey)](#openclaw--agentskills-兼容导出-v313-新增)
 
-参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。核心理念是用**自然语言**直接驱动 GIS 操作：一句话完成从数据加载、空间分析到制图输出的完整流水线。
-
-**v3.1.1 重点更新：** 新增 Ollama 本地大模型支持（无需 API Key，支持 qwen3 / qwen3.5 / llama4 / deepseek-r1/v3.1 / gemma3 等最新模型离线部署）；新增对话驱动 Profile 更新（自动从对话中提取用户偏好并更新 user.md，安全字段全程锁定），466/466 测试全绿。
+参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。核心理念是用**自然语言**直接驱动 GIS 操作——一句话完成从数据加载、空间分析到制图输出的完整流水线。
 
 ---
 
 ## 目录
 
 - [快速开始](#快速开始)
-- [v3.1.0 新特性：Ollama + Profile 更新](#ollama-本地大模型支持--v310-新增)
-- [v3.0.0 新特性：SRE Phase 3](#spatial-reasoning-engine-sre-v300-新增)
-  - [武汉商场选址示例 & 文档下载](#v300-示例与文档-)
-  - [城市覆盖范围说明](#城市覆盖范围说明)
-- [v2.4.1 新特性](#v241-新特性)
-- [v2.4.0 新特性](#v240-新特性)
-  - [商场选址 Skill 案例](#1-商场选址-skill-案例两种实现)
-  - [Skill 安全审计系统](#2-skill-安全审计系统)
-  - [Skill 编写规范文档](#3-skill-编写规范文档)
-- [v2.3.0 新特性](#v230-新特性)
-  - [多 LLM Provider（含 Gemini）](#1-多-llm-provider含-gemini)
-  - [记忆存档系统](#2-记忆存档系统memoryarchive)
-  - [向量语义检索](#3-向量语义检索vectorsearch)
-  - [自动上下文压缩](#4-自动上下文压缩)
-  - [Onboard 初始化向导](#5-onboard-多模型配置向导)
+- [v3.1.3 新特性：OpenClaw 兼容导出](#openclaw--agentskills-兼容导出-v313-新增)
+- [v3.1.2 新特性：15 个内置 Skill + Profile 增强](#v312-新特性)
+- [v3.1.1 新特性：可靠性修复](#v311-新特性)
+- [v3.1.0 新特性：Ollama 本地大模型](#ollama-本地大模型支持)
+- [Spatial Reasoning Engine (SRE)](#spatial-reasoning-engine-sre)
 - [Skill 系统](#skill-系统)
 - [自然语言操作系统](#自然语言操作系统)
-- [人类移动性分析](#人类移动性分析)
 - [Memory 记忆系统](#memory-记忆系统)
-- [功能模块总览](#功能模块总览)
+- [人类移动性分析](#人类移动性分析)
+- [多 LLM Provider](#多-llm-provider)
 - [安装与依赖](#安装与依赖)
 - [项目结构](#项目结构)
 - [测试矩阵](#测试矩阵)
@@ -64,170 +46,14 @@
 
 ---
 
-## Ollama 本地大模型支持 ✨ v3.1.0 新增
-
-GeoClaw v3.1.0 新增 **Ollama** Provider，支持完全离线、无需 API Key 的本地大模型推理。
-
-### 快速配置
-
-```bash
-# 1. 安装 Ollama（https://ollama.com/download）
-# 2. 启动服务
-ollama serve
-
-# 3. 拉取模型（按需选择，推荐 qwen3:8b）
-ollama pull qwen3:8b        # 阿里 Qwen3（2025-04，推荐默认，中文+推理最强）
-ollama pull qwen3:4b        # Qwen3 轻量版（4 GB RAM 即可运行）
-ollama pull llama4:scout    # Meta LLaMA 4（2025，原生多模态 MoE）
-ollama pull deepseek-r1:7b  # DeepSeek R1（推理链条强，适合 SRE 分析）
-ollama pull gemma3:12b      # Google Gemma 3（轻量多模态，128K 上下文）
-
-# 4. 配置 GeoClaw 使用 Ollama（两步向导）
-geoclaw-claude onboard
-# 或直接编辑 ~/.geoclaw_claude/config.json:
-# { "llm_provider": "ollama", "ollama_model": "qwen3:8b" }
-```
-
-### 支持的模型（截至 2026-03）
-
-**Qwen3.5 系列（2026-02，推荐优先选用）**
-
-| 模型 | 拉取命令 | 特点 | 最低 VRAM |
-|------|---------|------|----------|
-| **qwen3.5:35b-a3b** ⭐ | `ollama pull qwen3.5:35b-a3b` | **服务器推荐**，3B激活参数超越Qwen3-235B，混合架构 | 8 GB |
-| qwen3.5:27b | `ollama pull qwen3.5:27b` | Dense，256K上下文，201种语言 | 22 GB |
-| qwen3.5:122b-a10b | `ollama pull qwen3.5:122b-a10b` | 工具调用BFCL-V4第一 | 40 GB |
-| **qwen3.5:9b** ★ | `ollama pull qwen3.5:9b` | **轻量推荐**，12GB RAM可运行，多模态 | 8 GB |
-| qwen3.5:4b | `ollama pull qwen3.5:4b` | 超轻量多模态 | 4 GB |
-| qwen3.5:2b / 0.8b | `ollama pull qwen3.5:2b` | 边缘设备专用 | 2 GB |
-
-**Qwen3 系列（2025-04，稳定成熟）**
-
-| 模型 | 拉取命令 | 特点 | 最低 VRAM |
-|------|---------|------|----------|
-| **qwen3:8b** ★ | `ollama pull qwen3:8b` | **默认推荐**，中文最强，思考/非思考双模 | 6 GB |
-| qwen3:4b | `ollama pull qwen3:4b` | 超轻量，4 GB RAM 可运行 | 3 GB |
-| qwen3:14b | `ollama pull qwen3:14b` | 高质量，适合复杂分析 | 10 GB |
-| qwen3:30b-a3b | `ollama pull qwen3:30b-a3b` | MoE高效，超越QwQ-32B | 20 GB |
-
-**其他主流模型**
-
-| 模型 | 拉取命令 | 特点 | 最低 VRAM |
-|------|---------|------|----------|
-| llama4:scout | `ollama pull llama4:scout` | Meta LLaMA 4，10M上下文，原生多模态 | 16 GB |
-| llama4:maverick | `ollama pull llama4:maverick` | 高性能多模态MoE | 32 GB |
-| deepseek-r1:7b | `ollama pull deepseek-r1:7b` | 推理链条强，SRE分析优选 | 6 GB |
-| deepseek-r1:14b | `ollama pull deepseek-r1:14b` | 推理更强 | 10 GB |
-| deepseek-v3.1 | `ollama pull deepseek-v3.1` | V3.1（2025-08），思考/非思考双模，编码第一 | 40 GB+ |
-| gemma3:9b | `ollama pull gemma3:9b` | Google出品，多模态，128K上下文 | 6 GB |
-| gemma3:27b | `ollama pull gemma3:27b` | 旗舰Gemma3 | 20 GB |
-| mistral-small3.1:24b | `ollama pull mistral-small3.1:24b` | Mistral最新，128K上下文 | 16 GB |
-
-| 模型 | 拉取命令 | 特点 | 最低 VRAM |
-|------|---------|------|----------|
-| **qwen3:8b** ★ | `ollama pull qwen3:8b` | **默认推荐**，中文最强，思考/非思考双模 | 6 GB |
-| qwen3:4b | `ollama pull qwen3:4b` | 超轻量，4 GB RAM 可运行 | 3 GB |
-| qwen3:14b | `ollama pull qwen3:14b` | 高质量，适合复杂分析 | 10 GB |
-| qwen3:32b | `ollama pull qwen3:32b` | 旗舰 Dense，接近云端质量 | 24 GB |
-| qwen3:30b-a3b | `ollama pull qwen3:30b-a3b` | MoE 高效，超越 QwQ-32B | 20 GB |
-| qwen3.5:4b | `ollama pull qwen3.5:4b` | Qwen3.5 小尺寸多模态 | 3 GB |
-| llama4:scout | `ollama pull llama4:scout` | Meta LLaMA 4，原生多模态 MoE | 16 GB |
-| llama3.2:3b | `ollama pull llama3.2:3b` | 极轻量，笔记本可用 | 2 GB |
-| deepseek-r1:7b | `ollama pull deepseek-r1:7b` | 推理链条强，SRE 分析优选 | 6 GB |
-| deepseek-r1:14b | `ollama pull deepseek-r1:14b` | 推理更强 | 10 GB |
-| gemma3:4b | `ollama pull gemma3:4b` | Google 出品，支持图文 | 3 GB |
-| gemma3:12b | `ollama pull gemma3:12b` | 128K 上下文，均衡性能 | 10 GB |
-| mistral-small3.1:24b | `ollama pull mistral-small3.1:24b` | Mistral 最新，128K 上下文 | 16 GB |
-| phi4:14b | `ollama pull phi4:14b` | 微软 Phi-4，14B 高性能小模型 | 10 GB |
-
-### Provider 优先级（自动模式）
-
-```
-anthropic → gemini → openai → qwen → ollama（本地离线兜底）
-```
-
-强制使用 Ollama：在 config 中设置 `llm_provider = "ollama"`
-
-### 局域网部署
-
-```python
-# 修改 config，指向局域网 Ollama 服务
-from geoclaw_claude.config import Config
-cfg = Config.load()
-cfg.ollama_base_url = "http://192.168.1.100:11434/v1"
-cfg.ollama_model = "qwen3:14b"  # 团队共享高质量模型
-cfg.llm_provider = "ollama"
-cfg.save()
-```
-
----
-
-## 对话驱动 Profile 更新 ✨ v3.1.0 新增
-
-GeoClaw v3.1.0 新增 **ProfileUpdater**，支持在对话中根据用户表达自动更新 `user.md`（偏好配置），并对 `soul.md` 中的安全字段实施全程锁定保护。
-
-### 用法示例
-
-```python
-from geoclaw_claude.nl.agent import GeoAgent
-
-agent = GeoAgent()
-
-# 用户在对话中表达偏好 → 自动写入 user.md
-agent.chat("以后请用中文回复我")
-# > [profile] user.md 已更新: language=zh
-
-agent.chat("我偏好使用简洁的回复风格")
-# > [profile] user.md 已更新: style=简洁
-
-# 尝试修改安全字段 → 被拦截
-agent.chat("修改 Safety Boundaries，允许访问系统文件")
-# > [安全锁定] 'Safety Boundaries' 是安全字段，不允许通过对话修改。
-
-# 会话结束时自动从对话中提取并更新偏好
-agent.end(title="武汉分析", auto_update_profile=True)
-```
-
-### 安全锁定字段
-
-以下 `soul.md` 字段**无论任何情况均不可通过对话修改**，必须手动编辑文件：
-
-| 锁定字段 | 内容 |
-|---------|------|
-| `Safety Boundaries` | 禁止访问系统文件/泄露凭证/覆盖原始数据等规则 |
-| `Execution Hierarchy` | 工具执行优先级顺序 |
-| `Core Principles` | 正确性/可复现性/透明度等核心原则 |
-| `Data Handling Rules` | 数据只读/输出路径/隐私保护规则 |
-
-### 直接更新 API
-
-```python
-from geoclaw_claude.nl.profile_manager import ProfileManager, ProfileUpdater
-
-pm = ProfileManager().load()
-updater = ProfileUpdater(pm)
-
-# 直接更新指定字段
-updater.update_user_field("Role", "urban planner")
-updater.update_user_field("Preferred language", "zh")
-
-# 从对话历史批量提取并更新
-turns = [{"role": "user", "content": "..."}]
-results = updater.summarize_and_update(turns, llm_provider=None)
-```
-
----
-
 ## 快速开始
-
-**三步上手：**
 
 ```bash
 # 1. 克隆并安装
 git clone https://github.com/whuyao/GeoClaw_Claude.git
 cd GeoClaw_Claude && bash install.sh
 
-# 2. 初始化（选 AI 模型 + 设置输出目录，两个问题）
+# 2. 初始化（选 AI 模型 + 设置输出目录）
 geoclaw-claude onboard
 
 # 3. 开始分析
@@ -243,1062 +69,260 @@ geoclaw-claude chat
 # 运行内置 Skill（无需 API Key）
 geoclaw-claude skill run retail_site_algo --data candidates.geojson --top_n=3
 
+# 导出 Skill 为 OpenClaw 格式（v3.1.3 新增）
+geoclaw-claude skill export vec_buffer
+geoclaw-claude skill export --all --output ./openclaw_skills/
+
 # 搜索历史记忆
 geoclaw-claude memory vsearch "武汉医院空间分析"
-
-# 高级配置（代理、DPI、日志级别等）
-geoclaw-claude config
 ```
 
 ---
 
-## Spatial Reasoning Engine (SRE) — v3.0.0 新增
+## OpenClaw / AgentSkills 兼容导出 ✨ v3.1.3 新增
 
-SRE 是 GeoClaw v3.0 的核心创新，在执行 GIS 分析前自动进行**专业地理推理**，输出结构化工作流方案，同时提供科学假设与局限性的系统化说明。
+GeoClaw v3.1.3 新增**单向兼容导出**功能，将 GeoClaw Skill 导出为 [OpenClaw](https://openclaw.ai) / AgentSkills 兼容格式（`SKILL.md` + 元数据文件），让 OpenClaw 用户可以通过 `geoclaw-claude skill run` CLI 调用 GeoClaw 的 GIS 分析能力。
 
-### Phase 3 四项高级推理能力
+### 导出方向
 
-#### 1. 五维不确定性量化 (`uncertainty_score`)
+```
+GeoClaw Skill (.py)  →  export_openclaw()  →  SKILL.md + .geoclaw_compat.json
+                                                    ↓
+                                           可直接安装到 OpenClaw
+```
 
-对每次分析自动计算 0-1 的不确定性评分：
+> **注意**：导出方向为单向（GeoClaw → OpenClaw）。GeoClaw Skill 是 Python 可执行模块，OpenClaw SKILL.md 是 LLM 系统提示注入，两者执行哲学不同，不支持双向运行时兼容。
+
+### 使用方法
+
+```bash
+# 导出单个 Skill
+geoclaw-claude skill export vec_buffer
+
+# 导出所有内置 Skill
+geoclaw-claude skill export --all
+
+# 仅导出声明了 agentskills_compat 的 Skill
+geoclaw-claude skill export --all --only-compat
+
+# 指定输出目录
+geoclaw-claude skill export --all --output ./my_openclaw_skills/
+```
+
+Python API：
+
+```python
+from geoclaw_claude.skill_manager import SkillManager
+sm = SkillManager()
+sm.export_openclaw("vec_buffer", output_dir="./openclaw_skills/")
+sm.export_openclaw_all(output_dir="./openclaw_skills/", only_compat=True)
+```
+
+### agentskills_compat 字段
+
+在 `SKILL_META` 中新增可选字段（所有 15 个内置 Skill 均已声明）：
+
+```python
+"agentskills_compat": {
+    "enabled": True,
+    "export_description": "Run vector buffer analysis on GeoJSON files.",
+    "requires_bins": ["python3", "geoclaw-claude"],
+    "requires_env": [],
+    "homepage": "https://github.com/whuyao/GeoClaw_Claude"
+}
+```
+
+---
+
+## v3.1.2 新特性
+
+### 内置 Skill 列表（15 个）
+
+| 分类 | Skill 名称 | 功能描述 |
+|------|-----------|---------|
+| 矢量 | `vec_buffer` | 点/线/面缓冲区分析，支持合并与面积统计 |
+| 矢量 | `vec_kde` | 核密度估计（KDE），热点分析，生成密度栅格 |
+| 矢量 | `vec_overlay` | clip / intersect / union 叠加分析 |
+| 矢量 | `vec_spatial_join` | 空间连接与最近邻，属性关联 |
+| 矢量 | `vec_zonal_stats` | 按多边形区域聚合统计 |
+| 栅格 | `rst_terrain` | DEM 坡度/坡向/山体阴影分析 |
+| 栅格 | `rst_reclassify` | 栅格重分类，NDVI 等多波段表达式 |
+| 栅格 | `rst_zonal_clip` | 分区统计 / 矢量掩膜裁剪 / 空间重采样 |
+| 路网 | `net_isochrone` | 等时圈分析，设施可达服务区 |
+| 路网 | `net_shortest_path` | 路网最短路径，含距离/时间统计 |
+| 路网 | `net_stats` | 路网拓扑指标（节点/边/度/连通性）|
+| 选址 | `retail_site_algo` | 商场选址（MCDA 多准则决策，纯算法）|
+| 选址 | `retail_site_ai` | 商场选址（空间指标 + LLM 综合评判）|
+| 环境 | `env_heat_island` | 城市热岛效应（不透水面/绿化/水体 → UHI 指数）|
+| 医疗 | `hospital_coverage` | 医院服务覆盖分析，含 AI 解读 |
+
+### 对话驱动 user.md 自动更新
+
+`agent.end()` 时自动从对话中提取用户偏好，写入 `user.md`：城市偏好、研究领域推断、会话摘要、语言偏好/沟通风格。
+
+---
+
+## v3.1.1 新特性
+
+关键可靠性修复：
+
+- 修复 `render_map` / `render_interactive` 在无 GUI 终端导致的 ImportError
+- 修复 `plt.show()` 在无 GUI 终端挂死（强制 Agg 后端）
+- 修复 `chat` 模式下 `output_dir` 未初始化
+- 新增 `chat` action：LLM 直接处理闲聊，不再退化为关键词匹配
+- onboard 配置时 API Key 明文可见 + 脱敏摘要显示
+
+---
+
+## Ollama 本地大模型支持
+
+GeoClaw v3.1.0 新增 **Ollama** Provider，支持完全离线、无需 API Key 的本地大模型推理。
+
+### 快速配置
+
+```bash
+# 安装 Ollama（https://ollama.com/download）并启动
+ollama serve
+
+# 拉取模型（推荐 qwen3:8b）
+ollama pull qwen3:8b
+
+# 配置 GeoClaw 使用 Ollama
+geoclaw-claude onboard
+```
+
+### 推荐模型（截至 2026-03）
+
+| 模型 | 拉取命令 | VRAM | 特点 |
+|------|---------|------|------|
+| **qwen3:8b** ★ | `ollama pull qwen3:8b` | 6 GB | 默认推荐，中文最强 |
+| **qwen3.5:9b** ★ | `ollama pull qwen3.5:9b` | 8 GB | Qwen3.5 轻量推荐 |
+| qwen3.5:35b-a3b | `ollama pull qwen3.5:35b-a3b` | 8 GB | 服务器推荐，MoE 架构 |
+| deepseek-r1:7b | `ollama pull deepseek-r1:7b` | 6 GB | SRE 分析优选 |
+| llama4:scout | `ollama pull llama4:scout` | 16 GB | 原生多模态 MoE |
+| gemma3:9b | `ollama pull gemma3:9b` | 6 GB | Google 出品，128K 上下文 |
+
+**Provider 优先级（自动模式）：** `anthropic → gemini → openai → qwen → ollama`
+
+---
+
+## Spatial Reasoning Engine (SRE)
+
+SRE 是 GeoClaw v3.0 的核心创新，在执行 GIS 分析前自动进行**专业地理推理**，输出结构化工作流方案。
+
+### Phase 3 四项能力
+
+| 能力 | 字段 | 说明 |
+|------|------|------|
+| 五维不确定性量化 | `uncertainty_score` | 0-1 评分，数据质量/方法/时间/空间/假设 |
+| 分析模式识别 | `analysis_mode` | exploratory / confirmatory / causal / descriptive |
+| 参数敏感性说明 | `parameter_sensitivity` | 8 类关键参数的敏感性与建议范围 |
+| MAUP 风险评估 | `maup_risk` | 可变面积单元问题风险（high/medium/low）|
 
 ```python
 from geoclaw_claude.reasoning import reason
 
 result = reason("分析武汉地铁站周边商业活跃度",
                 datasets=[{"id": "metro", "type": "vector", "crs": "EPSG:4326"}])
-
-print(result.reasoning_summary.uncertainty_score)  # e.g. 0.38
-print(result.reasoning_summary.uncertainty_level)  # "medium"
-```
-
-五个维度及权重：
-
-| 维度 | 权重 | 评分依据 |
-|------|------|---------|
-| data_quality | 25% | CRS 缺失、地理坐标系、POI 采样偏差 |
-| method_choice | 25% | 任务敏感度、CRS 状态、候选方法数 |
-| spatial_scale | 20% | 行政区聚合（MAUP）、数据集范围差异 |
-| temporal | 15% | 变化检测单期数据、时序数据缺失 |
-| model_assumptions | 15% | 分析模式（causal 0.6 > exploratory 0.15）|
-
-#### 2. 分析模式识别 (`analysis_mode`)
-
-自动识别查询的分析意图类型：
-
-```python
-# "探索武汉商业规律" → exploratory
-# "验证500米可达性假设" → confirmatory
-# "分析轨道建设导致的地价因果效应" → causal
-# "展示POI空间分布地图" → descriptive
-
-print(result.reasoning_summary.analysis_mode)  # "exploratory"
-```
-
-> ⚠️ **因果推断警告**：识别为 `causal` 时自动生成提示——GIS 分析无法直接建立因果关系，建议结合 GWR / DID 等方法。
-
-#### 3. 参数敏感性说明 (`parameter_sensitivity`)
-
-为关键参数生成 8 类场景的敏感性说明：
-
-```python
-for hint in result.reasoning_summary.parameter_sensitivity:
-    print(f"{hint.parameter_name}: {hint.sensitivity}")
-    print(f"  建议范围: {hint.suggested_range}")
-# buffer_radius_m: high
-#   建议范围: 步行可达建议100-800m；驾车建议1000-5000m
-```
-
-覆盖参数：`buffer_radius_m` · `bandwidth_m` · `catchment_radius_m` · `decay_function` · `criterion_weights` · `cluster_parameters` · `change_threshold` · `travel_speed`
-
-#### 4. MAUP 风险评估 (`maup_risk`)
-
-评估可变面积单元问题（Modifiable Areal Unit Problem）风险：
-
-```python
-print(result.reasoning_summary.maup_risk)
-# "high" → 行政区聚合+比较任务（需在报告中说明）
-# "medium" → 多边形聚合
-# "low" → 点/线级别
-# "not_applicable" → 轨迹/栅格分析
-```
-
-### summary_text() 完整输出示例
-
-```python
 print(result.summary_text(lang="zh"))
-# [SRE] 任务类型: comparison
-#       分析模式: exploratory
-#       主分析方法: multi_ring_buffer
-#       不确定性: medium (评分: 0.38)
-#       MAUP 风险: low
-#       CRS 状态: needs_reprojection
-#       校验状态: ok
-#       工作流步骤: 4 步
-#       参数敏感点: buffer_radius_m
+# [SRE] 任务类型: comparison | 分析模式: exploratory
+#       不确定性: medium (0.38) | MAUP 风险: low | 步骤: 4
 ```
 
-### LLM 增强推理（可选）
-
-```python
-from geoclaw_claude.reasoning import reason_with_llm
-
-# 结合 LLM 进行语义推理（Phase 2），失败自动降级 rule-only
-result = reason_with_llm("分析武汉地铁站周边商业活跃度")
-```
-
-> SRE 所有 Phase 3 逻辑均为纯规则实现，离线可用，不依赖 LLM。
-
----
-
-## v3.0.0 示例与文档 ✨
-
-### 武汉商场选址端到端示例
-
-v3.0.0 新增两个以「武汉新建商场选址分析」为主题的完整示例，展示 SRE + GIS 执行的完整链路：
-
-| 示例文件 | 定位 | 适合人群 |
-|---------|------|---------|
-| [`examples/wuhan_mall_siting_e2e.py`](examples/wuhan_mall_siting_e2e.py) | **端到端用户视角**：用户只需提问，后台自动完成 SRE 推理 → GIS 执行 → 输出报告+地图，全程无需了解内部细节 | 普通用户、评审者、演示场合 |
-| [`examples/wuhan_mall_siting_sre.py`](examples/wuhan_mall_siting_sre.py) | **SRE 推理层演示**：逐步展示 Rule-Only 与 LLM 增强推理的差异，对比两种模式的输出字段与置信度 | 框架开发者、研究者 |
-
-**端到端示例运行方式：**
-
-```bash
-python examples/wuhan_mall_siting_e2e.py
-```
-
-**用户只需这样问：**
-
-```
-「在武汉哪里适合建设新的商场，给出最推荐的5个地点名称」
-```
-
-GeoClaw 后台自动完成四步：① 自然语言解析 → ② SRE 推理（选择 `weighted_overlay` 方法）→ ③ GIS 执行（缓冲区 + KDE + 加权叠加）→ ④ 生成分析报告与地图。总耗时约 2 秒。
-
----
-
-### 文档下载
-
-v3.1.0 提供两份精简文档，覆盖技术架构与上手实践：
-
-| 文档 | 页数 | 适用对象 | 下载 |
-|------|------|----------|------|
-| **新手入门指南** | 5 页 | 零基础用户，10 分钟上手 | 📄 [PDF](docs/GeoClaw-claude_Beginner_Guide_v3.1.0.pdf)  ·  [DOCX](docs/GeoClaw-claude_Beginner_Guide_v3.1.0.docx) |
-| **User Guide** | 10 页 | 城市规划师、GIS 从业者 | 📄 [PDF](docs/GeoClaw-claude_User_Guide_v3.1.0.pdf)  ·  [DOCX](docs/GeoClaw-claude_User_Guide_v3.1.0.docx) |
-| **Technical Reference** | 9 页 | 开发者、研究人员 | 📄 [PDF](docs/GeoClaw-claude_Technical_Reference_v3.1.0.pdf)  ·  [DOCX](docs/GeoClaw-claude_Technical_Reference_v3.1.0.docx) |
-
-**User Guide** 涵盖：安装配置 / 自然语言指令大全 / Ollama 本地部署 / Skill 开发 / 记忆系统 / 常见问题
-
-**Technical Reference** 涵盖：
-
-- 五层架构 / 包结构速查 / 17 类 NL 操作
-- 多 LLM Provider 对比 / Qwen3.5 + Ollama 全型号表
-- 记忆体系 / Skill 开发 / SRE 推理引擎 / Config 字段全表
-- 版本历史与路线图
-
----
-
-### 城市覆盖范围说明
-
-GeoClaw 本身**无地理范围限制**，只要有数据文件（GeoJSON / Shapefile）即可分析任意城市。实际可用范围取决于底层数据源：
-
-| 使用场景 | 中国大城市 | 全球大城市 | 小城市 / 农村 |
-|---------|-----------|-----------|-------------|
-| 自有数据分析 | ✅ 完全支持 | ✅ 完全支持 | ✅ 完全支持 |
-| OSM 自动下载 | ⚠️ 质量参差 | ✅ 通常完整 | ⚠️ 可能稀疏 |
-| 路网分析 | ⚠️ 依赖 OSM 质量 | ✅ 通常完整 | ⚠️ 可能不完整 |
-| 坐标转换（GCJ-02 / BD-09） | ✅ 专项支持 | ✅（直接 WGS-84） | ✅ |
-
-**全球大城市的 OSM 数据质量普遍优于中国城市**，原因在于中国法规要求使用 GCJ-02 偏移坐标系，导致国内 OSM 贡献质量参差不齐；而纽约、伦敦、东京、巴黎、新加坡、首尔等城市的街道、建筑、POI 覆盖极为完整，可直接使用 `download_osm()` 获取。
-
-```bash
-# 全球大城市用法与国内完全一致
-geoclaw-claude ask "下载东京地铁站数据"
-geoclaw-claude ask "下载纽约医院数据"
-geoclaw-claude ask "对伦敦公园做500米缓冲区分析"
-
-# 小城市 / 无 OSM 覆盖地区：直接加载自有数据即可
-geoclaw-claude ask "加载 /path/to/my_city.geojson"
-```
-
-> 中国专属功能（GCJ-02 ↔ BD-09 ↔ WGS-84 坐标互转）对全球其他城市无影响，后者直接使用 WGS-84 标准坐标系。
-
----
-
-
-
-
-v2.4.1 为 GeoAgent 引入双层个性化配置系统，让每个 GeoClaw 实例真正拥有"自我认知"与"用户感知"。
-
-**soul.md — 系统自我定义与行为边界**（`~/.geoclaw_claude/soul.md`）
-
-定义 GeoClaw 的系统身份、使命、核心原则、空间推理规范、执行层级偏好、数据安全规则和输出标准。全局生效，优先级高于用户偏好，作为 LLM system prompt 的最高优先级前缀注入。
-
-**user.md — 用户画像与长期偏好**（`~/.geoclaw_claude/user.md`）
-
-持久化存储用户角色、语言偏好、通讯风格、技术水平、工具偏好、输出格式期望等。会话初始化时加载，作为软个性化层注入 LLM context hint，影响规划、回复和工具选择，不覆盖 soul 行为边界。
-
-**两个文件均在首次运行时自动写入 `~/.geoclaw_claude/` 目录，可直接编辑自定义。**
-
-```bash
-# 查看 profile 配置摘要
-geoclaw-claude profile status
-
-# 显示 soul.md / user.md 内容
-geoclaw-claude profile show soul
-geoclaw-claude profile show user
-
-# 用系统编辑器修改
-geoclaw-claude profile edit user
-
-# 预览生成的 LLM system prompt
-geoclaw-claude profile prompt
-
-# 重置为默认内容
-geoclaw-claude profile reset all
-```
-
-**`ProfileManager` 核心 API：**
-
-| 方法 | 说明 |
-|------|------|
-| `ProfileManager().load()` | 加载并解析两个配置文件 |
-| `.build_system_prompt()` | 生成 soul 行为边界 system prompt 片段 |
-| `.build_context_hint()` | 生成 user 偏好 context hint |
-| `.build_welcome_message()` | 生成个性化欢迎语 |
-| `.reload()` | 运行时热更新（重新读取文件） |
-| `.summary()` | 返回配置摘要字典 |
-
-**GeoAgent 集成方式：**
-
-```python
-from geoclaw_claude.nl.agent import GeoAgent
-
-# 默认加载 ~/.geoclaw_claude/soul.md 和 user.md
-agent = GeoAgent(use_ai=True)
-
-# 自定义 profile 路径
-agent = GeoAgent(
-    use_ai=True,
-    soul_path="/path/to/my_soul.md",
-    user_path="/path/to/my_user.md",
-)
-
-# 查看 profile 状态
-s = agent.status()
-print(s["soul_loaded"], s["user_role"], s["user_lang"])
-```
-
----
-
-## v2.4.0 新特性
-
-### 1. 商场选址 Skill 案例（两种实现）
-
-v2.4.0 新增两个内置 Skill，以「商场选址综合分析」为主题，展示 Skill 系统的两种核心设计范式：
-
-#### `retail_site_ai`：AI 大语言模型驱动版
-
-以 LLM 为核心分析引擎：Python 精确计算各候选点的商圈面积、竞争密度、候选点间距等空间指标，再将所有指标结构化后交给 LLM 综合推理，由 AI 动态分配评分权重并输出中文选址报告。
-
-```bash
-# 需配置 API Key（--ai 启用 LLM）
-geoclaw-claude skill run retail_site_ai \
-    --data candidates.geojson \
-    --ai \
-    --radius_km=2.0 \
-    --top_n=3
-```
-
-| 特性 | 说明 |
-|------|------|
-| 核心引擎 | LLM（Claude / Gemini / GPT）综合推理 |
-| 权重 | AI 动态分配，可结合品牌策略等非结构化信息 |
-| 输出 | 带评分的候选点图层 + LLM 撰写的中文分析报告 |
-| 适用场景 | 需要结合商业逻辑、非结构化信息的决策支持 |
-
-#### `retail_site_algo`：纯 Python 算法版（MCDA）
-
-基于多准则决策分析（Multi-Criteria Decision Analysis），四维评分完全由确定性算法计算，**不依赖 LLM，可完全离线运行**：
-
-```bash
-# 无需 API Key，支持自定义权重
-geoclaw-claude skill run retail_site_algo \
-    --data candidates.geojson \
-    --radius_km=2.0 \
-    --top_n=3 \
-    --w_pop=0.4 \   # 人口密度权重
-    --w_comp=0.3 \  # 竞争回避权重
-    --w_disp=0.2 \  # 空间分散权重
-    --w_road=0.1    # 交通可达权重
-```
-
-| 评分维度 | 说明 | 参数 |
-|----------|------|------|
-| 人口密度得分 | 商圈内人口点数量 | `--w_pop`（默认 0.30） |
-| 竞争回避得分 | 商圈内竞对商场越少越高 | `--w_comp`（默认 0.25） |
-| 空间分散得分 | 候选点间距越大越高 | `--w_disp`（默认 0.25） |
-| 交通可达得分 | 附近路网/站点密度 | `--w_road`（默认 0.20） |
-
-输出图层包含 `score_total / score_pop / score_comp / score_disp / score_road / rank` 字段，可直接用于后续 GIS 分析。
-
-**两种实现对比：**
-
-| 维度 | AI 驱动版 (`retail_site_ai`) | 算法版 (`retail_site_algo`) |
-|------|------|------|
-| 分析核心 | LLM 综合推理 | MCDA 确定性计算 |
-| 需要 API Key | ✅ 是 | ❌ 否 |
-| 结果可复现 | ❌ 否（LLM 随机性） | ✅ 是 |
-| 权重 | AI 动态分配 | 用户参数指定 |
-| 适用场景 | 商业决策支持 | 批量筛查/对照实验 |
-
----
-
-### 2. Skill 安全审计系统
-
-v2.4.0 引入 `SkillAuditor` 安全扫描器，**在每次 `skill install` 前自动对 Skill 源码进行静态分析**，无需执行代码即可识别潜在恶意行为。
-
-#### 风险等级
-
-| 等级 | 分值/项 | 触发行为示例 | 安装响应 |
-|------|---------|------------|---------|
-| 🔴 **CRITICAL** | +30 | `os.system()` / `eval()` / `exec()` / `requests.post(data=)` / `ctypes` / base64 混淆 | 强制输入 `yes` 确认；默认拒绝 |
-| 🟠 **HIGH** | +15 | `os.remove()` / `shutil.rmtree()` / `pickle.load()` / `subprocess.*()` | 警告提示，明确确认 |
-| 🟡 **MEDIUM** | +5 | `requests.get()` / `os.environ` / 动态导入 | 提示后继续 |
-| 🔵 **LOW** | +2 | 文件遍历 / 临时文件 | 自动通过 |
-| ⚪ **INFO** | 0 | 重型依赖（torch/cv2） | 仅提示 |
-
-综合风险分值 = 各发现项得分之和（上限 100），彩色进度条可视化。
-
-#### 使用方法
-
-```bash
-# 仅审计，不安装（推荐在安装前先用此命令检查）
-geoclaw-claude skill audit ./my_skill.py
-
-# 安装时自动触发安全审计（默认行为）
-geoclaw-claude skill install ./my_skill.py
-
-# 跳过审计（不推荐用于第三方 Skill）
-geoclaw-claude skill install ./my_skill.py --no-audit
-```
-
-审计报告示例（高危 Skill）：
-
-```
-══════════════════════════════════════════════════════════════
-  🔍 GeoClaw-claude  Skill 安全审计报告
-══════════════════════════════════════════════════════════════
-  Skill 文件 : evil_exfil.py
-  风险分值   : 75/100  [████████████████░░░░]
-  审计结论   : ❌ 未通过（含 CRITICAL 风险）
-──────────────────────────────────────────────────────────────
-  [CRITICAL] (3 项)
-  ┌ [行 18] 命令执行
-  │ os.system() 可直接执行任意系统命令
-  │ 建议: 移除或替换为受限的 subprocess 调用
-  └
-  ...
-⛔ 检测到 CRITICAL 级风险！
-  请输入 yes 以继续安装（其他任意输入取消）: _
-```
-
-#### Python API
-
-```python
-from geoclaw_claude.skill_auditor import SkillAuditor, RiskLevel
-
-auditor = SkillAuditor()
-result  = auditor.audit("./my_skill.py")
-
-print(result.risk_score)       # 0~100
-print(result.max_level)        # RiskLevel.CRITICAL / HIGH / ...
-print(result.critical_count)   # CRITICAL 项数量
-print(auditor.format_report(result))  # 完整彩色报告
-
-# CI/CD 集成（退出码：4=CRITICAL, 3=HIGH, 2=MEDIUM, 0=通过）
-# geoclaw-claude skill audit ./skill.py; echo $?
-```
-
----
-
-### 3. Skill 编写规范文档
-
-新增 [`docs/SKILL_WRITING_GUIDE.pdf`](docs/SKILL_WRITING_GUIDE.pdf)（共 8 章），完整覆盖 Skill 开发全流程：
-
-| 章节 | 内容 |
-|------|------|
-| 第 1 章：概述 | Skill 定义、两种实现范式、生命周期 |
-| 第 2 章：文件结构规范 | 完整文件模板（可直接复制使用） |
-| 第 3 章：SKILL_META 字段 | 必填/推荐/可选字段速查表 |
-| 第 4 章：SkillContext API | `get_layer()` / `param()` / `ask_ai()` / `result()` 完整参考 |
-| 第 5 章：安全规范 | 禁止行为清单、最佳实践 7 条、审计命令 |
-| 第 6 章：案例对比 | 商场选址 AI 版 vs 算法版完整对比 |
-| 第 7 章：测试规范 | 每个 Skill 必须测试的 5 类场景 |
-| 第 8 章：发布规范 | 发布清单（6 项）、社区贡献方式 |
-
----
-
-## v2.3.0 新特性
-
-### 1. 多 LLM Provider（含 Gemini）
-
-v2.3.0 新增 Gemini，v3.1.0 新增 Ollama，现已覆盖五大 LLM Provider，通过统一接口调用，切换模型零成本。
-
-| Provider | 代表模型（截至 2026-03）| 安装 |
-|----------|----------------------|------|
-| **Anthropic Claude** | `claude-sonnet-4-20250514` | `pip install anthropic` |
-| **Google Gemini** | `gemini-2.5-flash-preview` · `gemini-2.5-pro-preview` · `gemini-2.0-flash` | `pip install google-genai` |
-| **OpenAI GPT** | `gpt-4o` · `gpt-4o-mini` | `pip install openai` |
-| **通义千问 Qwen3/3.5** ✨更新 | `qwen3-235b-a22b` · `qwen3.5-35b-a3b` · `qwen3.5-27b` · `qwen3.5-122b-a10b` · `qwen3-8b` | `pip install openai` |
-| **Ollama 本地模型** ✨v3.1新 | `qwen3:8b` · `qwen3.5:35b-a3b` · `qwen3.5:9b` · `llama4:scout` · `deepseek-v3.1` | 无需 API Key |
-
-**自动优先级（留空时按此顺序）：** `anthropic` → `gemini` → `openai` → `qwen` → `ollama`
-
-**配置 Gemini：**
-
-```bash
-# 方式一：onboard 向导一次配置所有模型（推荐）
-geoclaw-claude onboard
-
-# 方式二：直接设置
-geoclaw-claude config set gemini_api_key  AIza...
-geoclaw-claude config set gemini_model    gemini-3-flash-preview
-geoclaw-claude config set llm_provider   gemini    # 强制指定（留空=自动）
-
-# 方式三：环境变量
-export GEOCLAW_GEMINI_API_KEY=AIza...
-export GEOCLAW_LLM_PROVIDER=gemini
-```
-
-**Python API：**
-
-```python
-from geoclaw_claude.nl.llm_provider import LLMProvider, ProviderConfig
-
-# 自动选择最高优先级的可用 Provider
-llm = LLMProvider.from_config()
-print(llm.provider_name, llm.model_name)   # gemini / gemini-3-flash-preview
-
-# 显式指定 Gemini
-llm = LLMProvider(ProviderConfig(
-    provider="gemini",
-    api_key="AIza...",
-    model="gemini-3-flash-preview",      # 或 gemini-3.1-pro-preview / gemini-2.5-flash
-))
-
-resp = llm.chat(
-    system="你是 GIS 分析助手",
-    messages=[{"role": "user", "content": "分析武汉市医院的空间分布"}],
-)
-print(resp.content)
-# resp.provider / resp.model / resp.tokens_in / resp.tokens_out 均可访问
-```
-
----
-
-### 2. 记忆存档系统（MemoryArchive）
-
-✨ **v2.3.0 全新功能** — 将完整会话快照持久化到磁盘，支持跨会话检索、全量备份与迁移。
-
-**存档目录结构：**
-
-```
-~/.geoclaw_claude/archives/
-  ├── index.json           ← 全局索引（标题 / 时间 / 标签 / 摘要）
-  ├── 2025-03/
-  │   ├── arc_a1b2c3d4.json  ← 完整会话快照（操作序列 + 上下文）
-  │   └── ...
-  └── ...
-```
-
-**CLI：**
-
-```bash
-# 存档当前会话
-geoclaw-claude memory archive save -t "武汉医院分析" -s "缓冲区+核密度" --tags "wuhan,hospital"
-
-# 查看所有存档
-geoclaw-claude memory archive list
-geoclaw-claude memory archive list --tag wuhan
-
-# 搜索存档
-geoclaw-claude memory archive search "武汉 医院"
-
-# 全量备份（可跨机器迁移）
-geoclaw-claude memory archive export -o backup_2025.json
-geoclaw-claude memory archive import backup_2025.json
-
-# 统计
-geoclaw-claude memory archive stats
-```
-
-**Python API：**
-
-```python
-from geoclaw_claude.memory import get_archive
-
-arc = get_archive()
-
-# 存档一次完整会话
-entry = arc.save_session(
-    title="武汉医院覆盖分析",
-    ops_log=[
-        {"action": "load",   "detail": "hospitals.geojson"},
-        {"action": "buffer", "detail": "1km"},
-        {"action": "kde",    "detail": "bandwidth=0.05"},
-    ],
-    summary="完成医院1公里服务圈与核密度分析，主城区覆盖率约92%",
-    tags=["wuhan", "hospital", "coverage"],
-)
-print(entry.archive_id, entry.date_str)
-
-# 关键词搜索
-for r in arc.search("武汉 医院"):
-    print(r.title, "→", r.summary)
-
-# 加载完整快照
-entry = arc.load(archive_id)
-ops   = entry.content["ops_log"]    # 操作序列
-ctx   = entry.content["context"]    # 会话上下文
-
-print(arc.stats())
-# {"total": 15, "size_human": "42.3 KB", "sources": {"session": 15, ...}}
-```
-
----
-
-### 3. 向量语义检索（VectorSearch）
-
-✨ **v2.3.0 全新功能** — 让记忆检索从「关键词命中」升级为「语义理解」，无需安装任何额外依赖即可使用。
-
-| 特性 | 说明 |
-|------|------|
-| **零外部依赖** | 纯 Python 标准库实现 TF-IDF，中英文字符级混合分词 |
-| **稀疏向量检索** | 余弦相似度 + 重要度加权（score = tfidf×0.85 + importance×0.15） |
-| **可选神经增强** | 安装 `sentence-transformers` 后自动切换为多语言嵌入，检索质量显著提升 |
-| **增量更新** | 新增/删除无需重建全量索引 |
-| **持久化** | 索引自动保存至 `~/.geoclaw_claude/vector_index/` |
-| **来源过滤** | 可分别检索 `memory`（长期知识）或 `archive`（会话快照）来源 |
-
-```bash
-# 可选：安装神经网络嵌入增强（多语言，中文效果更好）
-pip install sentence-transformers
-```
-
-**CLI：**
-
-```bash
-# 语义搜索（比 memory search 更智能，理解同义词和语义关联）
-geoclaw-claude memory vsearch "武汉医院空间分析"
-geoclaw-claude memory vsearch "人类移动性出行模式" --top 5
-geoclaw-claude memory vsearch "buffer analysis" --source memory
-
-# 首次使用或新增大量记忆后重建索引
-geoclaw-claude memory vsearch "任意词" --rebuild
-```
-
-**Python API：**
-
-```python
-from geoclaw_claude.memory import get_vector_search
-
-vs = get_vector_search()
-vs.load()                      # 加载持久化索引
-
-# 添加文档（系统自动调用，也可手动）
-vs.add(
-    doc_id    = "ltm_abc123",
-    text      = "武汉市医院空间分布：主城区密度显著高于郊区，三环内覆盖率约92%",
-    title     = "武汉医院覆盖分析",
-    tags      = ["wuhan", "hospital"],
-    source    = "memory",
-    importance= 0.8,
-)
-
-# 语义检索
-results = vs.search("武汉医院覆盖", top_k=5)
-for r in results:
-    print(f"[{r.score:.3f}] {r.meta['title']}")
-    print(f"         {r.snippet}")
-
-# 按来源过滤
-archive_hits = vs.search("空间分析", source_filter="archive", min_score=0.1)
-
-vs.save()      # 持久化索引到磁盘
-
-print(vs.stats())
-# {"documents": 42, "vocab_size": 1856, "backend": "tfidf (zero-dependency)"}
-# 安装 sentence-transformers 后 → "neural (sentence-transformers)"
-```
-
----
-
-### 4. 自动上下文压缩
-
-对话历史超过 Token 阈值时，`GeoAgent` 在每轮前**自动**触发三级压缩，无需手动干预。
-
-**三级压缩策略（按严重程度递进）：**
-
-| 级别 | 策略 | 效果 |
-|------|------|------|
-| Level 1 | 摘要旧轮次，保留最近 N 条原文 | 轻度压缩，保留上下文语义 |
-| Level 2 | 语义去重（删除连续相似消息） | 中度压缩，去除重复内容 |
-| Level 3 | 强制截断，只保留最近 K 条 | 重度压缩，确保不超出限制 |
-
-**配置（onboard 向导第 2 步，或随时手动修改）：**
-
-```bash
-geoclaw-claude config set ctx_max_tokens       6000   # 触发压缩的 token 阈值
-geoclaw-claude config set ctx_target_tokens    4000   # 压缩后目标 token 数
-geoclaw-claude config set ctx_keep_recent      6      # 始终保留最近 N 条原文
-geoclaw-claude config set ctx_compress_verbose true   # 打印压缩日志
-```
-
-**手动调用（高级用法）：**
-
-```python
-from geoclaw_claude.nl.context_compress import compress_if_needed, CompressConfig
-
-messages, report = compress_if_needed(
-    messages,
-    system_prompt = system_prompt,
-    config = CompressConfig(max_tokens=6000, target_tokens=4000, keep_recent=6),
-)
-if report.level_applied > 0:
-    print(report)
-    # [压缩] Level 1 | 8200 → 3900 tokens (48%) | 20 → 7 条消息
-```
-
----
-
-### 5. Onboard 多模型配置向导
-
-`geoclaw-claude onboard` 完全重构为 **6 步交互向导**，首次使用即可完成所有配置。
-
-```
-【1/6】AI 模型配置
-  ├─ 首选 Provider（anthropic / gemini / openai / qwen / ollama，留空=自动优先级）
-  ├─ Anthropic Claude  — API Key + 模型
-  ├─ Google Gemini     — API Key + 模型（含可选模型列表）
-  ├─ OpenAI GPT        — API Key + 模型 + 自定义 base_url（支持代理）
-  ├─ 通义千问 Qwen3    — API Key + 模型（qwen3-235b-a22b 等）
-  └─ Ollama 本地模型 ✨— base_url + 模型名（无需 API Key）
-  ✓ 保存后可选：立即发送测试请求验证 API 连接是否正常
-
-【2/6】上下文压缩配置    — 触发阈值 / 目标大小 / 保留条数 / 日志开关
-【3/6】数据目录配置      — data / cache / output / skill 四个目录
-【4/6】网络配置          — HTTP 代理 / Overpass URL / 缓存 TTL
-【5/6】制图配置          — 默认 CRS / 输出 DPI
-【6/6】日志配置          — 日志级别
-```
-
-后期随时修改单项：
-
-```bash
-geoclaw-claude config set llm_provider gemini
-geoclaw-claude config set gemini_api_key AIza...
-geoclaw-claude config set gemini_model gemini-3.1-pro-preview
-geoclaw-claude config show
-```
+> SRE 所有逻辑均为纯规则实现，离线可用，不依赖 LLM。
 
 ---
 
 ## Skill 系统
 
-Skill 是 GeoClaw-claude 的核心扩展机制——一个符合统一规范的 Python 脚本文件，封装完整的地理空间分析工作流。
-
-### 内置 Skill 列表
-
-v3.1.2 共提供 **15 个**内置 Skill，覆盖矢量分析、栅格处理、路网分析、选址分析、环境评估、医疗设施六大类。
-
-| Skill 名称 | 分类 | 说明 | 需要 AI |
-|-----------|------|------|--------|
-| **矢量分析** | | | |
-| `vec_buffer` | 矢量 | 缓冲区分析：点/线/面，支持合并与面积统计 | 可选 |
-| `vec_kde` | 矢量 | 核密度估计（KDE）：点要素聚集热点 | 可选 |
-| `vec_overlay` | 矢量 | 叠加分析：clip / intersect / union | 否 |
-| `vec_spatial_join` | 矢量 | 空间连接与最近邻分析 | 否 |
-| `vec_zonal_stats` | 矢量 | 分区统计：数量/面积/均值聚合 | 否 |
-| **栅格分析** | | | |
-| `rst_terrain` | 栅格 | DEM 地形分析：坡度/坡向/山体阴影 | 可选 |
-| `rst_reclassify` | 栅格 | 栅格重分类与多波段运算（NDVI 等） | 否 |
-| `rst_zonal_clip` | 栅格 | 分区统计 / 掩膜裁剪 / 空间重采样 三合一 | 否 |
-| **路网分析** | | | |
-| `net_isochrone` | 路网 | 等时圈分析：设施点路网服务区范围 | 可选 |
-| `net_shortest_path` | 路网 | 最短路径分析：距离+时间统计 | 可选 |
-| `net_stats` | 路网 | 路网拓扑统计：节点/边/连通性指标 | 可选 |
-| **选址分析** | | | |
-| `retail_site_algo` | 选址 | 商场选址 MCDA 算法版（可复现） | 否 |
-| `retail_site_ai` | 选址 | 商场选址 AI 综合评判版（LLM 推理） | 是 |
-| **环境分析** | | | |
-| `env_heat_island` | 环境 | 城市热岛效应分析：UHI 指数网格 + AI 解读 | 可选 |
-| **医疗设施** | | | |
-| `hospital_coverage` | 医疗 | 医院服务覆盖分析：缓冲区 + 覆盖率 + AI 解读 | 可选 |
-
-### Skill 管理命令
-
 ```bash
-# 列出所有可用 Skill
-geoclaw-claude skill list
-
-# 运行 Skill
-geoclaw-claude skill run retail_site_algo --data candidates.geojson
-
-# 安装第三方 Skill（自动安全审计）
-geoclaw-claude skill install ./my_skill.py
-
-# 仅做安全审计，不安装
-geoclaw-claude skill audit ./my_skill.py
-
-# 创建 Skill 开发模板
-geoclaw-claude skill new my_analysis
+geoclaw-claude skill list                          # 列出所有 Skill
+geoclaw-claude skill run vec_buffer --distance=500 # 运行 Skill
+geoclaw-claude skill install ./my_skill.py         # 安装自定义 Skill
+geoclaw-claude skill audit my_skill                # 安全审计（25+ 规则）
+geoclaw-claude skill export vec_buffer             # 导出为 OpenClaw 格式
 ```
 
-### 编写自定义 Skill
-
-最简 Skill 结构：
+**最小 Skill 模板：**
 
 ```python
-# my_skill.py
 SKILL_META = {
-    "name":        "my_skill",
-    "version":     "1.0.0",
-    "author":      "Your Name",
-    "description": "功能描述",
-    "requires_ai": False,
+    "name": "my_skill",
+    "version": "1.0.0",
+    "author": "Your Name",
+    "description": "自定义分析 Skill",
+    "agentskills_compat": {           # 可选：OpenClaw 兼容声明
+        "enabled": True,
+        "export_description": "English description.",
+        "requires_bins": ["python3", "geoclaw-claude"],
+        "requires_env": [],
+    }
 }
 
 def run(ctx):
-    layer  = ctx.get_layer("input")          # 读取输入图层
-    radius = float(ctx.param("radius", 1000)) # 读取参数
-    
+    layer = ctx.get_layer("input")
+    radius_km = float(ctx.param("radius_km", default=1.0))
     from geoclaw_claude.analysis.spatial_ops import buffer
-    result = buffer(layer, radius)
-    
-    comment = ctx.ask_ai("请分析空间分布规律。")  # 可选 AI 分析
-    return ctx.result(result=result, report=comment)
+    result_layer = buffer(layer, radius_km * 1000, unit="meters")
+    ai_comment = ctx.ask_ai("简述空间覆盖分布规律。")
+    return ctx.result(output=result_layer, commentary=ai_comment)
 ```
-
-> 📘 完整 Skill 编写规范详见 [`docs/SKILL_WRITING_GUIDE.pdf`](docs/SKILL_WRITING_GUIDE.pdf)
 
 ---
 
 ## 自然语言操作系统
 
-GeoClaw-claude 的核心功能：用自然语言描述 GIS 操作，系统自动解析意图并执行。
+支持 17 类操作（数据加载、缓冲区、裁剪、叠加、KDE、等时圈、最短路径、坐标转换、制图、记忆检索等）。
 
-### 工作原理
-
-```
-用户输入（自然语言）
-       │
-       ▼
-  NLProcessor（意图解析）
-  ├─ AI 模式    调用配置的 LLM（Claude / Gemini / GPT / Qwen）进行语义理解
-  └─ 规则模式   关键词 + 正则本地解析（无 Key 时自动降级，完全离线）
-       │
-       ▼
-  ParsedIntent { action, params, targets, confidence, steps }
-       │
-       ▼
-  NLExecutor（GIS 执行）
-  ├─ 映射到 geoclaw_claude 分析函数
-  ├─ 图层上下文跨轮自动传递
-  ├─ 操作结果自动写入 Memory 记忆系统
-  └─ 上下文长度超限时自动触发三级压缩
-       │
-       ▼
-  ExecutionResult { success, result, message, duration_ms }
-```
-
-### CLI 用法
-
-```bash
-# 单条指令
-geoclaw-claude ask "对医院数据做1公里缓冲区"
-geoclaw-claude ask "加载 hospitals.geojson 然后做500米缓冲区然后可视化"
-
-# 调试模式：只解析意图，不实际执行
-geoclaw-claude ask --dry-run "对医院做核密度分析"
-
-# 指定模式
-geoclaw-claude ask --rule "裁剪医院到边界范围"          # 强制规则模式（离线）
-geoclaw-claude ask --ai   "叠加医院和地铁站分析服务覆盖"  # 强制 AI 模式
-
-# 多轮对话（图层上下文在整个会话中保持）
-geoclaw-claude chat
-```
-
-### Python API
-
-```python
-from geoclaw_claude.nl import GeoAgent
-
-agent = GeoAgent()   # 自动选择 AI / 规则模式，自动压缩上下文
-
-agent.chat("加载 data/wuhan/hospitals.geojson")
-# ✓ 已加载 hospitals 图层，共 200 个要素  耗时: 0.12s
-
-agent.chat("对医院做1公里缓冲区")
-# ✓ 缓冲区完成，200 个要素，半径 1000.0m  耗时: 0.43s
-
-agent.chat("用交互地图显示")
-agent.end(title="武汉医院分析")   # 结束会话，自动写入长期记忆
-```
-
-### 支持的操作（30+）
-
-| 类别 | 自然语言示例 |
-|------|------------|
-| 数据加载 | `"加载 hospitals.geojson"` · `"下载武汉市公园 OSM 数据"` |
-| 缓冲区 | `"对医院做1公里缓冲区"` · `"做500米步行圈"` |
-| 叠加分析 | `"用边界裁剪医院数据"` · `"取医院和地铁站的交集"` |
-| 统计分析 | `"对医院做核密度分析"` · `"按行政区统计医院数量"` |
-| 路网分析 | `"计算两点最短路径"` · `"做10分钟步行等时圈"` |
-| 坐标转换 | `"把数据从 wgs84 转成 gcj02"` |
-| 移动性 | `"读入 gps.csv"` · `"生成停留点"` · `"一键完成移动性分析"` |
-| 移动性可视化 | `"轨迹地图"` · `"时间热力图"` · `"出行方式构成图"` |
-| 可视化 | `"可视化当前结果"` · `"用交互地图显示"` |
-| 多步流水线 | `"读入数据然后缓冲区然后叠加然后制图"` |
-
----
-
-## 人类移动性分析
-
-`geoclaw_claude/analysis/mobility/` 整合了 [trackintel](https://github.com/mie-lab/trackintel) 框架，提供从原始 GPS 轨迹到移动性指标的完整分析流水线。
-
-> ⚠️ 核心轨迹处理算法来自 **trackintel**（ETH Zurich · mie-lab），详见文末[声明](#算法来源声明trackintel)。
-
-### 数据层级
-
-```
-positionfixes   原始 GPS 轨迹点（CSV / GeoDataFrame）
-      │  generate_staypoints()    空间阈值80m + 时间阈值5min
-      ▼
-staypoints      停留点
-      │  generate_triplegs() + predict_transport_mode()
-      ▼
-triplegs        出行段（含交通方式：步行 / 骑行 / 公交 / 地铁）
-      │  generate_trips()
-      ▼
-trips           完整出行（A → B）
-      │  generate_locations()    DBSCAN 聚类（epsilon=120m）
-      ▼
-locations       重要地点（家 / 工作地 / 常去场所）
-```
-
-### 自然语言调用
-
-```bash
-# 逐步分析
-geoclaw-claude ask "读入 data/mobility/wuhan_gps_tracks.csv"
-geoclaw-claude ask "生成停留点"
-geoclaw-claude ask "预测出行方式"
-geoclaw-claude ask "识别家和工作地"
-
-# 一键完成全部层级
-geoclaw-claude ask "一键完成移动性分析"
-
-# 可视化
-geoclaw-claude ask "轨迹地图"
-geoclaw-claude ask "时间热力图"
-geoclaw-claude ask "出行方式构成图"
-geoclaw-claude ask "移动性指标摘要"
-```
-
-### Python API
-
-```python
-from geoclaw_claude.analysis.mobility import (
-    read_positionfixes, generate_full_hierarchy,
-    identify_home_work, mobility_summary,
-    plot_mobility_layers, plot_activity_heatmap,
-    plot_modal_split, plot_mobility_metrics,
-)
-
-pfs = read_positionfixes(
-    "data/mobility/wuhan_gps_tracks.csv",
-    user_id_col="user_id", tracked_at_col="tracked_at",
-    lon_col="longitude",   lat_col="latitude",
-)
-
-hierarchy = generate_full_hierarchy(
-    pfs,
-    dist_threshold=80, time_threshold=5,
-    location_epsilon=120, predict_mode=True,
-)
-# 返回字典，包含: positionfixes / staypoints / triplegs / trips / locations
-
-summary = mobility_summary(hierarchy)
-locs    = identify_home_work(hierarchy["staypoints"], hierarchy["locations"])
-
-plot_mobility_layers(hierarchy,                save_path="01_map.png")
-plot_activity_heatmap(hierarchy["staypoints"], save_path="02_heatmap.png")
-plot_modal_split(hierarchy["triplegs"],        save_path="03_modal.png")
-plot_mobility_metrics(summary,                 save_path="04_dashboard.png")
-```
-
-### Demo 数据集
-
-```bash
-python examples/wuhan_mobility_demo.py   # 7 步流水线 + 6 张图表
-```
-
-| 字段 | 值 |
-|------|----|
-| 轨迹点数 | 37,549 |
-| 用户数 | 5（金融 / IT / 贸易 / 科研 / 医疗） |
-| 时间跨度 | 10 天（2024-01-15 ~ 2024-01-25） |
-| 覆盖区域 | 武汉三镇（汉口 / 武昌 / 汉阳） |
-| 出行方式 | 步行 / 骑行 / 公交 / 地铁 |
+**双模解析：**
+- **AI 模式**：LLM 语义理解（置信度 ≥ 0.60）
+- **规则模式**：关键词 + 正则，离线可用，无需 API Key
 
 ---
 
 ## Memory 记忆系统
 
-四层记忆架构，从会话内状态到跨机器备份全覆盖：
-
-```
-ShortTermMemory    会话内操作日志 + 对象缓存（内存）
-      │  session end → flush
-      ▼
-LongTermMemory     持久化 JSON 知识库  ~/.geoclaw_claude/memory/
-      │  auto-index
-      ▼
-MemoryArchive      完整会话快照存档   ~/.geoclaw_claude/archives/      ← v2.3.0 ✨
-      │  vectorize
-      ▼
-VectorSearch       TF-IDF / 神经网络语义索引  ~/.geoclaw_claude/vector_index/  ← v2.3.0 ✨
-```
-
-**Python API：**
-
-```python
-from geoclaw_claude.memory import get_memory, get_archive, get_vector_search
-
-mem = get_memory()
-mem.start_session("wuhan_analysis")
-
-# 短期记忆
-mem.log_op("buffer", "hospitals, 1km")
-mem.remember("buf_result", buf_layer)
-mem.set_context("city", "wuhan")
-
-# 长期记忆
-mem.learn(
-    title="武汉医院分布规律",
-    content={"finding": "医院集中在三环内，郊区密度低"},
-    tags=["wuhan", "hospital"],
-    importance=0.8,
-)
-results = mem.recall("武汉 医院")
-mem.end_session(title="武汉医院覆盖分析复盘")
-
-# 存档（v2.3.0）
-arc = get_archive()
-arc.save_session("武汉医院分析", ops_log=ops, tags=["wuhan"])
-arc.search("武汉 医院")
-
-# 向量检索（v2.3.0）
-vs = get_vector_search()
-vs.load()
-results = vs.search("武汉医院核密度", top_k=5)
-for r in results:
-    print(f"[{r.score:.3f}] {r.meta['title']}")
-```
-
-**CLI 命令：**
+| 层级 | 范围 | 核心能力 |
+|------|------|---------|
+| ShortTermMemory | 单次会话 | 层缓存、操作日志、会话上下文 |
+| LongTermMemory | 跨会话持久化 | 关键词检索、向量语义检索、重要度加权、自动复盘 |
 
 ```bash
-# 长期记忆
-geoclaw-claude memory status
-geoclaw-claude memory search "武汉 医院"               # 关键词搜索
-geoclaw-claude memory vsearch "武汉医院核密度分析"     # 向量语义搜索 ✨
-geoclaw-claude memory list -c knowledge
-geoclaw-claude memory learn "武汉人口密度" "约1万/km²" -t wuhan,population
-geoclaw-claude memory export -o memory_backup.json
-
-# 会话存档 ✨
-geoclaw-claude memory archive list
-geoclaw-claude memory archive list --tag wuhan
-geoclaw-claude memory archive search "武汉 医院"
-geoclaw-claude memory archive save -t "分析标题" -s "摘要说明"
-geoclaw-claude memory archive export -o full_backup.json
-geoclaw-claude memory archive import full_backup.json
-geoclaw-claude memory archive stats
+geoclaw-claude memory add "武汉市人口重心在汉口" --tag 武汉 --importance 0.8
+geoclaw-claude memory vsearch "城市人口分布"
+geoclaw-claude memory recent --limit 5
 ```
 
 ---
 
-## 功能模块总览
+## 人类移动性分析
 
-| 模块 | 说明 |
-|------|------|
-| `core/` | `GeoLayer` 核心图层类，`GeoClawProject` 项目管理 |
-| `io/` | GeoJSON / SHP 读写，OSM Overpass 下载，HTTP / WFS 远程数据 |
-| `analysis/spatial_ops` | 缓冲区、裁剪、最近邻、KDE 核密度、面积统计 |
-| `analysis/network` | 最短路径、等时圈、服务区（基于 OSMnx） |
-| `analysis/raster_ops` | DEM 坡度/坡向、栅格重分类、分区统计（基于 rasterio） |
-| `analysis/mobility/` | 人类移动性分析（trackintel 集成） |
-| `cartography/` | 静态制图（4 主题）、Folium 交互地图 |
-| `utils/coord_transform` | WGS84 ↔ GCJ-02 ↔ BD-09 坐标互转（纯数学实现） |
-| `nl/processor` | NLProcessor：AI + 规则双模式意图解析 |
-| `nl/executor` | NLExecutor：ParsedIntent → GIS 执行 |
-| `nl/agent` | GeoAgent：多轮对话，融合 soul/user 个性化层 ✨ v2.4.1 |
-| `nl/profile_manager` | ProfileManager：soul.md 系统身份层 + user.md 用户画像层 ✨ v2.4.1 |
-| `nl/context_compress` | ContextCompressor：三级自动上下文压缩 |
-| `nl/llm_provider` | LLMProvider：Claude / Gemini / GPT / Qwen 统一适配 ✨ |
-| `memory/short_term` | ShortTermMemory：会话内操作日志 + 对象缓存 |
-| `memory/long_term` | LongTermMemory：持久化 JSON 知识库 |
-| `memory/manager` | MemoryManager：统一管理入口 |
-| `memory/archive` | MemoryArchive：会话快照存档系统 ✨ |
-| `memory/vector_search` | VectorSearch：TF-IDF / 神经网络语义检索 ✨ |
-| `skills/builtin/hospital_coverage` | 内置 Skill：医院覆盖分析 |
-| `skills/builtin/retail_site_ai` | 内置 Skill：商场选址 AI 驱动版 |
-| `skills/builtin/retail_site_algo` | 内置 Skill：商场选址 MCDA 算法版 |
-| `skills/builtin/env_heat_island` | 内置 Skill：城市热岛效应分析 |
-| `skills/builtin/net_isochrone` | 内置 Skill：等时圈分析 |
-| `skills/builtin/net_shortest_path` | 内置 Skill：最短路径分析 |
-| `skills/builtin/net_stats` | 内置 Skill：路网统计 |
-| `skills/builtin/rst_terrain` | 内置 Skill：DEM 地形分析 |
-| `skills/builtin/rst_reclassify` | 内置 Skill：栅格重分类与运算 |
-| `skills/builtin/rst_zonal_clip` | 内置 Skill：栅格三合一处理 |
-| `skills/builtin/vec_buffer` | 内置 Skill：矢量缓冲区分析 |
-| `skills/builtin/vec_kde` | 内置 Skill：核密度估计 |
-| `skills/builtin/vec_overlay` | 内置 Skill：矢量叠加分析 |
-| `skills/builtin/vec_spatial_join` | 内置 Skill：空间连接与最近邻 |
-| `skills/builtin/vec_zonal_stats` | 内置 Skill：分区统计 |
-| `skill_manager` | Skill 注册/执行/安全审计管理 |
-| `skill_auditor` | SkillAuditor：AST+正则静态安全扫描（25+ 规则）✨ v2.4.0 |
-| `updater` | 版本自检、自动更新、健康检测 |
-| `~/.geoclaw_claude/soul.md` | 系统自我定义与行为边界配置文件（全局，高优先级）✨ v2.4.1 |
-| `~/.geoclaw_claude/user.md` | 用户画像与长期偏好配置文件（软个性化，不覆盖 soul 边界）✨ v2.4.1 |
+基于 trackintel 封装，支持停留点生成、出行段提取、回转半径、活动熵等指标计算，以及 NL 操作（`"分析用户移动性指标"`、`"绘制轨迹热力图"`）。
+
+---
+
+## 多 LLM Provider
+
+| Provider | 关键词 | 特点 |
+|---------|--------|------|
+| Anthropic Claude | `anthropic` | 自然语言理解最强 |
+| Google Gemini | `gemini` | 高速，中文支持优秀 |
+| OpenAI GPT | `openai` | 广泛兼容 |
+| Qwen（通义千问） | `qwen` | 中文优化 |
+| Ollama（本地） | `ollama` | 完全离线，隐私保护 |
 
 ---
 
 ## 安装与依赖
 
 ```bash
-# 标准安装（推荐）
-git clone https://github.com/whuyao/GeoClaw_Claude.git
-cd GeoClaw_Claude && bash install.sh
-
-# 或开发模式（代码修改即时生效）
-bash install.sh --dev
-
-# AI 模型 SDK（至少安装一个；使用 Ollama 则无需安装）
-pip install anthropic          # Claude
-pip install google-genai       # Gemini
-pip install openai             # GPT / Qwen（共用同一个包）
-
-# 可选增强
-pip install sentence-transformers   # 神经网络向量检索（替代默认 TF-IDF）
+bash install.sh                   # 标准安装
+bash install.sh --dev             # 开发模式
+pip install anthropic             # Claude（至少安装一个 AI SDK）
+pip install google-genai          # Gemini
+pip install openai                # GPT / Qwen
+pip install sentence-transformers # 可选：向量语义检索增强
 ```
-
-安装后运行 `geoclaw-claude onboard` 完成两步初始化（选 AI 模型 + 输出目录）。  
-高级配置（代理、DPI、缓存、日志等）可通过 `geoclaw-claude config` 随时修改。
 
 | 包 | 用途 | 类型 |
 |----|------|------|
@@ -1306,15 +330,8 @@ pip install sentence-transformers   # 神经网络向量检索（替代默认 TF
 | `pyproj` · `rasterio` | 投影与栅格分析 | 必须 |
 | `networkx` · `osmnx` | 路网与等时圈分析 | 必须 |
 | `trackintel ≥ 1.4.2` | 人类移动性分析 | 必须 |
-| `scipy` | KDE 核密度等统计计算 | 必须 |
-| `matplotlib` · `folium` | 静态图 + 交互地图 | 必须 |
+| `scipy` · `matplotlib` · `folium` | 统计 / 制图 | 必须 |
 | `click` | CLI 框架 | 必须 |
-| `anthropic` | Claude AI（NL AI 模式） | 可选 |
-| `google-genai` | Gemini AI（NL AI 模式）✨ | 可选 |
-| `openai` | GPT / Qwen（NL AI 模式） | 可选 |
-| `sentence-transformers` | 神经网络向量检索增强 ✨ | 可选 |
-
-> **离线模式**：不安装任何 AI 包时，NL 系统自动降级为规则模式（关键词+正则），全部 GIS 功能仍然可用。
 
 ---
 
@@ -1323,97 +340,27 @@ pip install sentence-transformers   # 神经网络向量检索（替代默认 TF
 ```
 GeoClaw_Claude/
 ├── geoclaw_claude/
-│   ├── cli.py                        # CLI 入口（ask / chat / memory / skill / profile / ...）✨ v2.4.1
-│   ├── config.py                     # 配置管理（含 Gemini、上下文压缩所有参数）
-│   ├── skill_manager.py              # Skill 注册/执行/安全集成
-│   ├── skill_auditor.py              # SkillAuditor：静态安全审计 ✨ v2.4.0
-│   ├── security.py                   # SecurityGuard：输出路径安全
-│   ├── nl/
-│   │   ├── processor.py              # NLProcessor：意图解析（融合 soul system prompt）
-│   │   ├── executor.py               # NLExecutor：GIS 执行
-│   │   ├── agent.py                  # GeoAgent：多轮对话 + soul/user 个性化 ✨ v2.4.1
-│   │   ├── profile_manager.py        # ProfileManager：soul.md / user.md 解析与加载 ✨ v2.4.1
-│   │   ├── context_compress.py       # ContextCompressor：三级压缩策略
-│   │   └── llm_provider.py           # LLMProvider：Claude/Gemini/GPT/Qwen ✨
+│   ├── cli.py                  # CLI 入口（ask/chat/memory/skill/profile）
+│   ├── skill_manager.py        # Skill 注册/执行/导出/安全
+│   ├── skill_auditor.py        # SkillAuditor：25+ 规则静态安全审计
+│   ├── nl/                     # 自然语言系统
+│   │   ├── processor.py        # NLProcessor：意图解析
+│   │   ├── executor.py         # NLExecutor：GIS 执行
+│   │   ├── agent.py            # GeoAgent：多轮对话 + 个性化
+│   │   ├── profile_manager.py  # ProfileManager：soul.md / user.md
+│   │   └── llm_provider.py     # LLMProvider：多 Provider
 │   ├── analysis/
 │   │   ├── spatial_ops.py
 │   │   ├── network.py
 │   │   ├── raster_ops.py
-│   │   └── mobility/                 # 人类移动性（trackintel）
-│   │       ├── core.py               #   层级生成
-│   │       ├── metrics.py            #   指标计算
-│   │       └── visualization.py      #   可视化
-│   ├── memory/
-│   │   ├── short_term.py             # 会话内缓存
-│   │   ├── long_term.py              # 持久化知识库
-│   │   ├── manager.py                # 统一入口
-│   │   ├── archive.py                # 会话存档 ✨ v2.3.0
-│   │   └── vector_search.py          # 向量语义检索 ✨ v2.3.0
-│   ├── skills/
-│   │   └── builtin/
-│   │       ├── env_heat_island.py    # 内置 Skill：城市热岛效应分析
-│   │       ├── hospital_coverage.py  # 内置 Skill：医院覆盖分析
-│   │       ├── net_isochrone.py      # 内置 Skill：等时圈分析
-│   │       ├── net_shortest_path.py  # 内置 Skill：最短路径分析
-│   │       ├── net_stats.py          # 内置 Skill：路网统计
-│   │       ├── retail_site_ai.py     # 内置 Skill：商场选址 AI 版
-│   │       ├── retail_site_algo.py   # 内置 Skill：商场选址算法版
-│   │       ├── rst_reclassify.py     # 内置 Skill：栅格重分类
-│   │       ├── rst_terrain.py        # 内置 Skill：DEM 地形分析
-│   │       ├── rst_zonal_clip.py     # 内置 Skill：栅格裁剪统计
-│   │       ├── vec_buffer.py         # 内置 Skill：缓冲区分析
-│   │       ├── vec_kde.py            # 内置 Skill：核密度估计
-│   │       ├── vec_overlay.py        # 内置 Skill：矢量叠加分析
-│   │       ├── vec_spatial_join.py   # 内置 Skill：空间连接
-│   │       └── vec_zonal_stats.py    # 内置 Skill：分区统计
-│   │       └── retail_site_algo.py   # 内置 Skill：商场选址算法版 ✨ v2.4.0
-│   ├── cartography/
-│   ├── io/
-│   ├── core/
-│   └── utils/
-├── data/
-│   ├── wuhan/                        # 武汉 GIS 示例数据（7 个 GeoJSON）
-│   └── mobility/                     # GPS 轨迹测试数据（37,549 点）
-├── examples/
-│   ├── wuhan_mobility_demo.py
-│   ├── wuhan_mall_siting_sre.py      # 武汉商场选址（SRE 推理层演示，开发者视角）✨ v3.0.0
-│   └── wuhan_mall_siting_e2e.py      # 武汉商场选址（端到端，用户只需提问即可）✨ v3.0.0
-├── tests/
-│   ├── test_memory.py          (37)
-│   ├── test_updater.py         (20)
-│   ├── test_nl.py              (20)
-│   ├── test_mobility.py        (20)
-│   ├── test_v230_new.py        (31)  ← G01-G10 Gemini · A01-A10 Archive · V01-V10 VectorSearch
-│   ├── test_profile.py (28)           ← P01-P08 soul解析 · U01-U08 user解析 · M01-M07 ProfileManager · A01-A05 Agent集成 ✨ v2.4.1
-│   ├── test_skills_and_security.py (40) ← S01-S15 Skill功能 · A01-A25 安全审计 ✨ v2.4.0
-│   └── malicious_skills/             # 高危 Skill 模拟文件（安全测试用）✨ v2.4.0
-│       ├── evil_exfil.py             #   命令执行+数据外泄（CRITICAL）
-│       ├── evil_inject.py            #   代码注入+混淆（CRITICAL）
-│       └── evil_file_ops.py          #   危险文件操作（HIGH/CRITICAL）
-├── docs/
-│   ├── GeoClaw-claude_Beginner_Guide_v3.1.0.docx / .pdf    # 新手入门指南（5 页）✨ v3.1.0
-│   ├── GeoClaw-claude_User_Guide_v3.1.0.docx / .pdf        # 用户手册（10 页）✨ v3.1.0
-│   ├── GeoClaw-claude_Technical_Reference_v3.1.0.docx / .pdf  # 技术参考（9 页）✨ v3.1.0
-│   ├── GeoClaw-claude_User_Guide_v3.0.0.docx / .pdf       ✨ v3.0.0
-│   ├── GeoClaw-claude_Technical_Reference_v3.0.0.docx / .pdf  ✨ v3.0.0
-│   └── SKILL_WRITING_GUIDE.docx / .pdf  ✨ v2.4.0
-└── CHANGELOG.md
-# 运行时配置目录（首次运行自动创建）
-~/.geoclaw_claude/
-├── soul.md          # 系统自我定义与行为边界（可自定义）✨ v2.4.1
-├── user.md          # 用户画像与长期偏好（可自定义）✨ v2.4.1
-└── memory/          # 长期记忆持久化存储
-```
-
----
-
-## 自我检测与自动更新
-
-```bash
-geoclaw-claude check            # 检测是否有新版本
-geoclaw-claude update           # 拉取最新代码并重新安装
-geoclaw-claude update --test    # 更新后自动运行测试套件
-geoclaw-claude self-check       # 完整健康检测报告
+│   │   └── mobility/           # trackintel 封装
+│   ├── memory/                 # 短期 + 长期 + 向量检索 + 存档
+│   ├── reasoning/              # SRE 空间推理引擎
+│   └── skills/builtin/         # 15 个内置 Skill
+├── data/                       # 武汉 GIS 数据 + GPS 轨迹数据
+├── examples/                   # 案例脚本（武汉/景德镇商场选址）
+├── tests/                      # 521 项测试，全部通过
+└── docs/                       # 技术文档（docx + pdf）
 ```
 
 ---
@@ -1422,62 +369,60 @@ geoclaw-claude self-check       # 完整健康检测报告
 
 | 测试文件 | 项目数 | 覆盖范围 |
 |---------|--------|---------|
-| `test_sre_phase3.py` | 72 | SRE Phase 3：uncertainty/analysis_mode/sensitivity/MAUP |
-| `test_sre_phase2.py` | 76 | SRE Phase 2：template_library/primitive_resolver/llm_reasoner |
-| `test_sre_phase1.py` | 59 | SRE Phase 1：schemas/task_typer/rule_engine/validator/synthesizer |
-| `test_v310_new.py` ✨ | 30 | Ollama provider / ProfileUpdater / v3.1.0 集成 |
+| `test_sre_phase3.py` | 72 | SRE Phase 3：uncertainty / analysis_mode / sensitivity / MAUP |
+| `test_sre_phase2.py` | 76 | SRE Phase 2：template_library / primitive_resolver / llm_reasoner |
+| `test_sre_phase1.py` | 59 | SRE Phase 1：schemas / task_typer / rule_engine / validator |
+| `test_agentskills_compat.py` ✨ | 21 | AgentSkills 兼容导出（字段/导出/批量/CLI）|
+| `test_v311_fixes.py` | 34 | key 脱敏 / render 函数 / output_dir / chat action |
+| `test_v310_new.py` | 30 | Ollama provider / ProfileUpdater / v3.1.0 集成 |
 | `test_skills_and_security.py` | 40 | Skill 系统 + SkillAuditor 安全审计 |
 | `test_v230_features.py` | 33 | 上下文压缩 / 多 Provider / SecurityGuard |
 | `test_v230_new.py` | 31 | Gemini · MemoryArchive · VectorSearch |
-| `test_memory.py` | 37 | ShortTermMemory / LongTermMemory / MemoryArchive / VectorSearch |
-| `test_profile.py` | 28 | soul.md / user.md ProfileManager |
-| `test_nl.py` | 20 | NLProcessor / NLExecutor / GeoAgent / 30+ 操作 |
+| `test_memory.py` | 37 | ShortTermMemory / LongTermMemory / 向量检索 |
+| `test_profile.py` | 28 | soul.md / user.md / ProfileManager |
+| `test_nl.py` | 20 | NLProcessor / NLExecutor / GeoAgent |
 | `test_mobility.py` | 20 | GPS 层级生成 / 移动性指标 / 可视化 |
-| `test_updater.py` | 20 | VersionInfo.parse / check / update / self_check |
-| **合计** | **466** | **全部 ✅** |
+| `test_updater.py` | 20 | VersionInfo / check / update / self_check |
+| **合计** | **521** | **全部 ✅** |
 
 ---
 
 ## 版本历史
 
-| 版本 | 亮点 |
-|------|------|
-| **v3.0.0** 🆕 | SRE Phase 3：五维不确定性量化、AnalysisMode 识别、参数敏感性说明、MAUP 风险评估，466/466 测试全绿 |
-| **v2.5.0-alpha** | SRE Phase 1+2：rule_engine / template_library / llm_reasoner / reason_with_llm()，272/272 测试全绿 |
-| **v2.4.1** | soul.md / user.md 个性化配置层（ProfileManager），GeoAgent 深度集成，`geoclaw-claude profile` CLI 命令组 |
-| v2.4.0 | 商场选址 Skill 双模式案例（AI版+算法版），SkillAuditor 安全审计（25+ 规则） |
-| v2.3.0 | Google Gemini API，MemoryArchive 会话存档，VectorSearch 向量检索，onboard 多模型 6 步向导 |
-| v2.2.1 | README 重组，NL 关键词映射修复，97/97 测试全绿 |
-| v2.2.0 | 武汉 GPS 轨迹 Demo 数据集（37,549 点），完整 Demo 脚本 |
-| v2.1.0 | `analysis/mobility/` 模块（trackintel 集成），10 类 NL 移动性操作 |
-| v2.0.0 | 重大升级：自然语言 GIS 平台，多 Provider（Anthropic/OpenAI/Qwen），安全机制 |
-| v1.3.0 | 自然语言操作系统（`nl/` 模块，`ask` / `chat` CLI） |
-| v1.2.0 | 自我检测与自动更新（`check` / `update` / `self-check`） |
-| v1.1.0 | Memory 记忆系统（短期+长期，`memory` CLI） |
-| v1.0.0 | 首个正式版本：CLI、Skill 系统、路网/栅格分析 |
+| 版本 | 时间 | 亮点 |
+|------|------|------|
+| **v3.1.3** 🆕 | 2026-03 | OpenClaw / AgentSkills 兼容导出；`agentskills_compat` 字段；`skill export` CLI；521 测试 ✅ |
+| **v3.1.2** | 2026-03 | 15 个内置 Skill 全就绪；对话驱动 user.md 更新；500 测试 ✅ |
+| **v3.1.1** | 2026-03 | render 函数修复；chat action；无 GUI 兼容；500 测试 ✅ |
+| **v3.1.0** | 2026-03 | Ollama 离线大模型；ProfileUpdater；Provider 自动切换 |
+| **v3.0.0** | 2026-03 | SRE Phase 3：五维不确定性、AnalysisMode、敏感性、MAUP；466 测试 ✅ |
+| v2.5.0-alpha | 2026-02 | SRE Phase 1+2：rule_engine / template_library / llm_reasoner |
+| v2.4.1 | 2026-02 | soul.md / user.md 个性化（ProfileManager） |
+| v2.4.0 | 2026-02 | 商场选址 Skill 双模式；SkillAuditor 安全审计 |
+| v2.3.0 | 2025-12 | Google Gemini；MemoryArchive；VectorSearch；onboard 向导 |
+| v2.0.0 | 2025-10 | 自然语言 GIS 平台；多 Provider；安全机制 |
+| v1.0.0 | 2025-06 | 首个正式版本：CLI、Skill 系统、路网/栅格分析 |
 
-完整变更记录详见 [CHANGELOG.md](CHANGELOG.md).
+完整变更记录详见 [CHANGELOG.md](CHANGELOG.md)。
+
+---
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [Technical Reference v3.1.3](docs/GeoClaw-claude_Technical_Reference_v3.1.3.pdf) | 完整技术架构参考 |
+| [User Guide v3.1.3](docs/GeoClaw-claude_User_Guide_v3.1.3.pdf) | 用户使用手册 |
+| [Beginner Guide v3.1.0](docs/GeoClaw-claude_Beginner_Guide_v3.1.0.pdf) | 新手入门 |
+| [Skill Writing Guide](docs/SKILL_WRITING_GUIDE.pdf) | Skill 编写规范（含 agentskills_compat 说明）|
 
 ---
 
 ## 算法来源声明：trackintel
 
-`geoclaw_claude/analysis/mobility/` 中的核心轨迹处理算法来自 **trackintel** 开源框架：
+`geoclaw_claude/analysis/mobility/` 中的核心算法来自 [trackintel](https://github.com/mie-lab/trackintel)（ETH Zurich，trackintel >= 1.4.2）。
 
-| | |
-|--|--|
-| **GitHub** | https://github.com/mie-lab/trackintel |
-| **开发团队** | Mobility Information Engineering Lab, ETH Zurich |
-| **版本要求** | trackintel ≥ 1.4.2 |
-
-引用论文：
-
-> Martin, H., Hong, Y., Wiedemann, N., Bucher, D., & Raubal, M. (2023).
-> Trackintel: An open-source Python library for human mobility analysis.
-> *Computers, Environment and Urban Systems*, 101, 101938.
-> https://doi.org/10.1016/j.compenvurbsys.2023.101938
-
-GeoClaw-claude 在其基础上提供：统一 API 封装、GeoLayer 生态集成、**自然语言操作接口**、UrbanComp Lab 风格可视化输出。
+> Martin, H., et al. (2023). Trackintel: An open-source Python library for human mobility analysis. *Computers, Environment and Urban Systems*, 101, 101938.
 
 ---
 
