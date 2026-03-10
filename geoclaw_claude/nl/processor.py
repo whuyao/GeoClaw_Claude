@@ -264,10 +264,24 @@ class NLProcessor:
         # ── 工作模式 ────────────────────────────────────────────────────
         if use_ai is None:
             self._use_ai = self._llm is not None
+            # 若无 API Key 自动降级规则模式，打印引导提示
+            if not self._use_ai:
+                print(
+                    "⚠  [GeoClaw] 未检测到 API Key，当前以离线规则模式运行。\n"
+                    "   AI 模式可大幅提升意图理解精度，强烈建议配置 API Key：\n"
+                    "   export OPENAI_API_KEY=sk-...   # OpenAI\n"
+                    "   export ANTHROPIC_API_KEY=sk-... # Claude\n"
+                    "   GeoClaw 支持 OpenAI / Claude / Gemini / Qwen / Ollama。"
+                )
         else:
             self._use_ai = use_ai
             if not use_ai:
                 self._llm = None
+                if self.verbose:
+                    print(
+                        "ℹ  [GeoClaw] use_ai=False，已切换离线规则模式。\n"
+                        "   如需 AI 语义理解，移除 use_ai=False 并配置 API Key。"
+                    )
 
         if self.verbose:
             mode = "AI模式" if self._use_ai else "规则模式"

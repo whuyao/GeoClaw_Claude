@@ -565,9 +565,10 @@ class ProfileManager:
             tool_hint = ""
             if user.tool_prefs:
                 tool_hint = f"\n  · 偏好工具: {', '.join(user.tool_prefs[:3])}"
+            ai_note = "" if mode == "AI" else "\n⚠ 当前为离线规则模式，建议配置 API Key 启用 AI 模式获得更强意图理解。"
             msg = (
                 f"GeoClaw-claude 自然语言 GIS 助手已启动（{mode}模式）{role_hint}。\n"
-                f"系统使命：{soul.mission}\n"
+                f"系统使命：{soul.mission}{ai_note}\n"
                 f"请直接用自然语言描述你想做的 GIS 操作，例如：\n"
                 f"  · 加载 hospitals.geojson\n"
                 f"  · 对医院做1公里缓冲区\n"

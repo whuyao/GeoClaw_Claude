@@ -492,37 +492,48 @@ class LLMProvider:
                 print("  [LLM] openai 库未安装：pip install openai")
             return None
 
-        api_messages: List[Dict[str, str]] = []
-        if system:
-            api_messages.append({"role": "system", "content": system})
-        for m in messages:
-            role = m.get("role", "user")
-            if role == "system":
-                api_messages.append({"role": "user", "content": f"[系统信息] {m['content']}"})
+        try:
+            api_messages: List[Dict[str, str]] = []
+            if system:
+                api_messages.append({"role": "system", "content": system})
+            for m in messages:
+                role = m.get("role", "user")
+                if role == "system":
+                    api_messages.append({"role": "user", "content": f"[系统信息] {m['content']}"})
+                else:
+                    api_messages.append({"role": role, "content": m["content"]})
+
+            client_kwargs: Dict[str, Any] = {"api_key": self.config.api_key}
+            if self.config.base_url:
+                client_kwargs["base_url"] = self.config.base_url
+
+            client = OpenAI(**client_kwargs)
+            # gpt-5.x / o-series 使用 max_completion_tokens，不支持 temperature
+            _new_api_models = ("o1", "o3", "o4", "gpt-5", "gpt-4.5", "gpt-4.1")
+            use_completion_tokens = any(self.config.model.startswith(m) for m in _new_api_models)
+            create_kwargs: Dict[str, Any] = {
+                "model": self.config.model,
+                "messages": api_messages,
+            }
+            if use_completion_tokens:
+                create_kwargs["max_completion_tokens"] = max_tokens
             else:
-                api_messages.append({"role": role, "content": m["content"]})
-
-        client_kwargs: Dict[str, Any] = {"api_key": self.config.api_key}
-        if self.config.base_url:
-            client_kwargs["base_url"] = self.config.base_url
-
-        client = OpenAI(**client_kwargs)
-        resp = client.chat.completions.create(
-            model=self.config.model,
-            max_tokens=max_tokens,
-            temperature=self.config.temperature,
-            messages=api_messages,
-        )
-        content = resp.choices[0].message.content or "" if resp.choices else ""
-        usage = resp.usage
-        return LLMResponse(
-            content=content,
-            provider=self.config.provider,
-            model=self.config.model,
-            tokens_in=usage.prompt_tokens if usage else 0,
-            tokens_out=usage.completion_tokens if usage else 0,
-            raw=resp,
-        )
+                create_kwargs["max_tokens"] = max_tokens
+                create_kwargs["temperature"] = self.config.temperature
+            resp = client.chat.completions.create(**create_kwargs)
+            content = resp.choices[0].message.content or "" if resp.choices else ""
+            usage = resp.usage
+            return LLMResponse(
+                content=content,
+                provider=self.config.provider,
+                model=self.config.model,
+                tokens_in=usage.prompt_tokens if usage else 0,
+                tokens_out=usage.completion_tokens if usage else 0,
+                raw=resp,
+            )
+        except Exception as e:
+            print(f"  [LLM] OpenAI 调用失败 ({self.config.model}): {type(e).__name__}: {e}")
+            return None
 
     # ── Ollama 本地模型调用（OpenAI 兼容接口）──────────────────────────────────
 

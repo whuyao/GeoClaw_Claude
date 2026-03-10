@@ -49,7 +49,7 @@ class Config:
     anthropic_model:   str = "claude-sonnet-4-20250514"  # Claude 默认模型
 
     openai_api_key:    str = ""          # OpenAI API Key
-    openai_model:      str = "gpt-4o-mini"  # OpenAI 默认模型
+    openai_model:      str = "gpt-5.1-chat-latest"  # OpenAI 默认模型
     openai_base_url:   str = ""          # 自定义 base_url（兼容 API 代理）
 
     gemini_api_key:    str = ""                  # Google Gemini API Key

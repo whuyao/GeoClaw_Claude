@@ -178,13 +178,14 @@ class GeoAgent:
             if not reply and self._proc._llm is not None:
                 # 直接用 LLM 生成自然语言回复
                 try:
+                    alive_sys = self._build_alive_system_prompt()
                     resp = self._proc._llm.chat(
                         messages=[{"role": "user", "content": text}],
-                        system="你是 GeoClaw，由中国地质大学（武汉）UrbanComp Lab（城市计算实验室）开发的开源智能地理空间分析框架。你帮助研究人员、城市规划师和工程师通过自然语言完成复杂的空间分析工作流。用中文友好地回复用户。"
+                        system=alive_sys,
                     )
-                    reply = resp.content if resp else "有什么我可以帮你的？"
+                    reply = resp.content if resp else "嗯，说来听听？"
                 except Exception:
-                    reply = "有什么 GIS 分析需要帮忙？"
+                    reply = "嗯，有什么 GIS 问题想聊？"
             if not reply:
                 reply = "有什么 GIS 分析需要帮忙？"
             return self._add_agent_msg(reply, intent=intent)
@@ -194,11 +195,12 @@ class GeoAgent:
             # AI 模式下：直接用 LLM 生成回复，不抛出固定错误
             if self._proc._use_ai and self._proc._llm is not None:
                 try:
+                    alive_sys = self._build_alive_system_prompt()
                     resp = self._proc._llm.chat(
                         messages=[{"role": "user", "content": text}],
-                        system="你是 GeoClaw，由中国地质大学（武汉）UrbanComp Lab（城市计算实验室）开发的开源智能地理空间分析框架。用中文友好地回复用户，如果是 GIS 需求请说明如何描述，其他问题直接回答。"
+                        system=alive_sys,
                     )
-                    reply = resp.content if resp else f"抱歉，我没理解「{text}」，请换个说法或输入「帮助」查看支持的操作。"
+                    reply = resp.content if resp else f"没太理解「{text}」，能换个说法吗？"
                     return self._add_agent_msg(reply, intent=intent)
                 except Exception:
                     pass
@@ -319,7 +321,7 @@ class GeoAgent:
         return "\n".join(lines)
 
     def _build_context(self) -> Dict[str, Any]:
-        """构建传给解析器的上下文（含上下文压缩 + soul/user 个性化）。"""
+        """构建传给解析器的上下文（含上下文压缩 + soul/user 个性化 + 记忆注入）。"""
         ctx: Dict[str, Any] = {}
         layers = self._exec.list_layers()
         if layers:
@@ -337,6 +339,14 @@ class GeoAgent:
         user_hint = self.profile.build_context_hint()
         if user_hint:
             ctx["user_profile_hint"] = user_hint
+
+        # ── 注入长期记忆摘要（跨会话）──────────────────────────────────────
+        try:
+            mem_summary = self._build_memory_context()
+            if mem_summary:
+                ctx["long_term_memory"] = mem_summary
+        except Exception:
+            pass
 
         # 构建对话消息列表并压缩
         messages = self._history_to_messages()
@@ -380,6 +390,104 @@ class GeoAgent:
             elif m.role == "agent":
                 msgs.append({"role": "assistant", "content": m.text})
         return msgs
+
+    # ── 记忆上下文构建 ──────────────────────────────────────────────────────────
+
+    def _build_memory_context(self) -> str:
+        """
+        构建注入对话的记忆上下文字符串。
+        整合：① 今日短期操作摘要 ② 长期记忆相关片段 ③ 历史复盘关键词。
+        用于赋予 GeoClaw「活人感」—— 记得你，记得你做过什么，记得你的习惯。
+        """
+        parts = []
+
+        # 1. 今日会话短期摘要（当前会话操作序列）
+        try:
+            mem = self._exec._mem
+            op_log = mem.short.get_operation_log() if hasattr(mem, "short") else []
+            if op_log:
+                ops_summary = ", ".join(
+                    f"{r.get('action', r.get('function', '?'))}"
+                    for r in op_log[-6:]
+                )
+                parts.append(f"本次会话已执行操作: {ops_summary}")
+        except Exception:
+            pass
+
+        # 2. 长期记忆 —— 最近会话复盘摘要（跨天记忆）
+        try:
+            lt = self._exec._mem.long if hasattr(self._exec._mem, "long") else None
+            if lt is not None:
+                # 按重要性+近期优先取最多3条session摘要
+                recent_sessions = lt.search(
+                    query="session analysis workflow",
+                    category="session",
+                    top_k=3,
+                )
+                if recent_sessions:
+                    session_hints = []
+                    for s in recent_sessions:
+                        title = getattr(s, 'title', '')
+                        snippet = str(str(getattr(s, 'content', ''))[:100])[:80]
+                        session_hints.append(f"[{title}] {snippet}")
+                    if session_hints:
+                        parts.append("历史分析记录:\n  " + "\n  ".join(session_hints))
+        except Exception:
+            pass
+
+        # 3. 用户偏好长期记忆
+        try:
+            lt = self._exec._mem.long if hasattr(self._exec._mem, "long") else None
+            if lt is not None:
+                pref_entries = lt.search(query="user preference", category="preference", top_k=2)
+                if pref_entries:
+                    pref_snippets = [str(str(getattr(e, 'content', ''))[:80])[:60] for e in pref_entries]
+                    parts.append("用户习惯偏好: " + " | ".join(pref_snippets))
+        except Exception:
+            pass
+
+        return "\n".join(parts) if parts else ""
+
+    def _build_alive_system_prompt(self) -> str:
+        """
+        构建「活人感」系统提示词。
+        融合 soul.md、user.md、当日对话记忆、长期记忆复盘。
+        供 chat action 的 LLM 调用使用。
+        """
+        soul_text = self.profile.build_system_prompt() or ""
+        user_hint = self.profile.build_context_hint() or ""
+        mem_ctx   = ""
+        try:
+            mem_ctx = self._build_memory_context()
+        except Exception:
+            pass
+
+        # 当前对话轮次
+        turns = len([m for m in self._history if m.role == "user"])
+        # 用户角色
+        user_role = getattr(self.profile.user, "role", "研究人员")
+        user_name = getattr(self.profile.user, "name", "")
+        name_hint = f"用户名: {user_name}。" if user_name else ""
+
+        system = (
+            f"{soul_text}\n\n"
+            f"## 当前对话状态\n"
+            f"{name_hint}用户角色: {user_role}。本次对话已进行 {turns} 轮。\n"
+        )
+        if user_hint:
+            system += f"\n## 用户偏好\n{user_hint}\n"
+        if mem_ctx:
+            system += f"\n## 记忆上下文\n{mem_ctx}\n"
+        system += (
+            "\n## 对话风格要求\n"
+            "你是 GeoClaw，一个有记忆、有个性的 GIS 分析助手。\n"
+            "- 记住用户说过的事，自然地在对话中引用（不要刻意强调'你刚才说过'）。\n"
+            "- 语气自然亲切，像一个熟悉的同事，而不是冷冰冰的系统。\n"
+            "- 对 GIS 话题有见解，可以主动提建议、问题或延伸思考。\n"
+            "- 保持专业但有温度，中文优先，技术问题给准确答案。\n"
+            "- 不要重复说'有什么我可以帮你的'，自然对话即可。"
+        )
+        return system
 
     def context_stats(self) -> dict:
         """返回当前上下文 token 估算统计。"""
