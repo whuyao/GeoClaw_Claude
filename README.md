@@ -12,14 +12,14 @@
 > **UrbanComp Lab** 出品的自然语言驱动城市地理信息分析平台
 > https://urbancomp.net
 
-[![Version](https://img.shields.io/badge/version-3.1.3-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-521%2F521-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/version-3.1.4-blue)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-577%2F577-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 [![LLM](https://img.shields.io/badge/LLM-Claude%20%7C%20Gemini%20%7C%20GPT%20%7C%20Qwen%20%7C%20Ollama-blueviolet)](#多-llm-provider)
 [![Skills](https://img.shields.io/badge/builtin%20skills-15-success)](#内置-skill-列表)
 [![SRE](https://img.shields.io/badge/SRE-Phase%203-7B2D8B)](#spatial-reasoning-engine-sre)
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-compat%20export-lightgrey)](#openclaw--agentskills-兼容导出-v313-新增)
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-compat%20export-lightgrey)](#openclaw--agentskills-兼容导出)
 
 参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。核心理念是用**自然语言**直接驱动 GIS 操作——一句话完成从数据加载、空间分析到制图输出的完整流水线。
 
@@ -28,7 +28,8 @@
 ## 目录
 
 - [快速开始](#快速开始)
-- [v3.1.3 新特性：OpenClaw 兼容导出](#openclaw--agentskills-兼容导出-v313-新增)
+- [v3.1.4 新特性：活人感对话记忆系统](#v314-新特性活人感对话记忆系统)
+- [v3.1.3 新特性：OpenClaw 兼容导出](#openclaw--agentskills-兼容导出)
 - [v3.1.2 新特性：15 个内置 Skill + Profile 增强](#v312-新特性)
 - [v3.1.1 新特性：可靠性修复](#v311-新特性)
 - [v3.1.0 新特性：Ollama 本地大模型](#ollama-本地大模型支持)
@@ -63,13 +64,13 @@ geoclaw-claude ask "下载武汉市医院数据，做 1 公里缓冲区，用交
 更多用法：
 
 ```bash
-# 多轮对话模式
+# 多轮对话模式（含活人感记忆）
 geoclaw-claude chat
 
 # 运行内置 Skill（无需 API Key）
 geoclaw-claude skill run retail_site_algo --data candidates.geojson --top_n=3
 
-# 导出 Skill 为 OpenClaw 格式（v3.1.3 新增）
+# 导出 Skill 为 OpenClaw 格式
 geoclaw-claude skill export vec_buffer
 geoclaw-claude skill export --all --output ./openclaw_skills/
 
@@ -79,9 +80,66 @@ geoclaw-claude memory vsearch "武汉医院空间分析"
 
 ---
 
-## OpenClaw / AgentSkills 兼容导出 ✨ v3.1.3 新增
+## v3.1.4 新特性：活人感对话记忆系统
 
-GeoClaw v3.1.3 新增**单向兼容导出**功能，将 GeoClaw Skill 导出为 [OpenClaw](https://openclaw.ai) / AgentSkills 兼容格式（`SKILL.md` + 元数据文件），让 OpenClaw 用户可以通过 `geoclaw-claude skill run` CLI 调用 GeoClaw 的 GIS 分析能力。
+v3.1.4 是一次**对话体验**的系统性升级，让 GeoClaw 从「工具」进化为「有记忆的分析伙伴」。
+
+### 三项核心改造
+
+#### ① 跨轮记忆注入（Alive System Prompt）
+
+每次对话调用前，`GeoAgent` 自动构建包含完整上下文的 system prompt：
+
+```
+soul.md 身份边界（GeoClaw 是什么）
+    +
+user.md 用户偏好（角色、语言、工具偏好）
+    +
+本次会话操作摘要（今日做了什么）
+    +
+长期记忆片段（历史分析复盘、用户习惯）
+    ↓
+_build_alive_system_prompt() → 注入 LLM
+```
+
+效果：GeoClaw 记得你是谁、你今天做了什么、你之前的研究习惯——对话有连贯性，不需要每次重新介绍自己。
+
+#### ② AI 优先模式（AI-First）
+
+- **无 API Key 时**：打印清晰的五行引导提示，明确告知当前为离线规则模式，提供配置命令示例
+- **欢迎语**：规则模式下显示 `⚠ 建议配置 API Key 启用 AI 模式`，不再静默降级
+- **默认模型**：`config` 默认模型更新为 `gpt-5.1-chat-latest`
+
+```bash
+# 配置 API Key（五种 Provider 均支持）
+export OPENAI_API_KEY=sk-...        # OpenAI (gpt-5.1-chat-latest 默认)
+export ANTHROPIC_API_KEY=sk-...     # Claude
+export GEMINI_API_KEY=...           # Gemini
+export QWEN_API_KEY=...             # 通义千问
+# 或本地 Ollama（无需 Key）
+```
+
+#### ③ GPT-5.x / o-series API 兼容
+
+修复了 `gpt-5.1-chat-latest`、`o1`、`o3`、`o4` 系列使用 `max_completion_tokens`（而非旧版 `max_tokens`）的 API 兼容性问题。GeoClaw 自动检测模型系列，透明切换参数。
+
+### 30 轮对话测试效果
+
+以虚拟用户「姚静涵」（城市规划博士生）连续 30 轮纯聊天验证，`gpt-5.1-chat-latest` 驱动：
+
+| 验证维度 | 测试轮次 | 结果 |
+|---------|---------|------|
+| 记忆连贯性 | Q16 / Q17 / Q27 | 准确回引前轮研究背景、样本量、研究者画像 |
+| 学术深度 | Q5 / Q10 / Q18 | Tobler 定律局限、MAUP、混合方法有实质分析 |
+| 活人感 | Q2 / Q24 / Q30 | 对「有性格吗」「会无聊吗」有自然、有温度的回应 |
+| 主动参与 | Q4 / Q6 | 主动提出延伸问题，展现对话连续性 |
+| 语言适配 | 全程 | 中英文自然切换，与用户风格对齐 |
+
+---
+
+## OpenClaw / AgentSkills 兼容导出
+
+GeoClaw v3.1.3 新增**单向兼容导出**功能，将 GeoClaw Skill 导出为 [OpenClaw](https://openclaw.ai) / AgentSkills 兼容格式（`SKILL.md` + 元数据文件）。
 
 ### 导出方向
 
@@ -91,21 +149,14 @@ GeoClaw Skill (.py)  →  export_openclaw()  →  SKILL.md + .geoclaw_compat.jso
                                            可直接安装到 OpenClaw
 ```
 
-> **注意**：导出方向为单向（GeoClaw → OpenClaw）。GeoClaw Skill 是 Python 可执行模块，OpenClaw SKILL.md 是 LLM 系统提示注入，两者执行哲学不同，不支持双向运行时兼容。
+> **注意**：导出方向为单向（GeoClaw → OpenClaw）。两者执行哲学不同，不支持双向运行时兼容。
 
 ### 使用方法
 
 ```bash
-# 导出单个 Skill
-geoclaw-claude skill export vec_buffer
-
-# 导出所有内置 Skill
-geoclaw-claude skill export --all
-
-# 仅导出声明了 agentskills_compat 的 Skill
-geoclaw-claude skill export --all --only-compat
-
-# 指定输出目录
+geoclaw-claude skill export vec_buffer            # 导出单个 Skill
+geoclaw-claude skill export --all                 # 导出所有内置 Skill
+geoclaw-claude skill export --all --only-compat   # 仅导出声明兼容的 Skill
 geoclaw-claude skill export --all --output ./my_openclaw_skills/
 ```
 
@@ -139,7 +190,7 @@ sm.export_openclaw_all(output_dir="./openclaw_skills/", only_compat=True)
 ### 内置 Skill 列表（15 个）
 
 | 分类 | Skill 名称 | 功能描述 |
-|------|-----------|---------|
+|------|-----------|---------| 
 | 矢量 | `vec_buffer` | 点/线/面缓冲区分析，支持合并与面积统计 |
 | 矢量 | `vec_kde` | 核密度估计（KDE），热点分析，生成密度栅格 |
 | 矢量 | `vec_overlay` | clip / intersect / union 叠加分析 |
@@ -275,17 +326,19 @@ def run(ctx):
 支持 17 类操作（数据加载、缓冲区、裁剪、叠加、KDE、等时圈、最短路径、坐标转换、制图、记忆检索等）。
 
 **双模解析：**
-- **AI 模式**：LLM 语义理解（置信度 ≥ 0.60）
-- **规则模式**：关键词 + 正则，离线可用，无需 API Key
+- **AI 模式**：LLM 语义理解（置信度 ≥ 0.60），`gpt-5.1-chat-latest` 为默认模型
+- **规则模式**：关键词 + 正则，离线可用，无需 API Key（降级时有明确引导提示）
 
 ---
 
 ## Memory 记忆系统
 
 | 层级 | 范围 | 核心能力 |
-|------|------|---------|
+|------|------|---------| 
 | ShortTermMemory | 单次会话 | 层缓存、操作日志、会话上下文 |
 | LongTermMemory | 跨会话持久化 | 关键词检索、向量语义检索、重要度加权、自动复盘 |
+
+v3.1.4 新增：**对话时自动从 LongTermMemory 检索历史复盘和用户偏好，注入 system prompt**，让每次会话都能「记住」上一次的分析经验。
 
 ```bash
 geoclaw-claude memory add "武汉市人口重心在汉口" --tag 武汉 --importance 0.8
@@ -305,9 +358,9 @@ geoclaw-claude memory recent --limit 5
 
 | Provider | 关键词 | 特点 |
 |---------|--------|------|
+| OpenAI GPT | `openai` | 默认，支持 gpt-5.1-chat-latest / gpt-4.1 等最新模型 |
 | Anthropic Claude | `anthropic` | 自然语言理解最强 |
 | Google Gemini | `gemini` | 高速，中文支持优秀 |
-| OpenAI GPT | `openai` | 广泛兼容 |
 | Qwen（通义千问） | `qwen` | 中文优化 |
 | Ollama（本地） | `ollama` | 完全离线，隐私保护 |
 
@@ -318,9 +371,9 @@ geoclaw-claude memory recent --limit 5
 ```bash
 bash install.sh                   # 标准安装
 bash install.sh --dev             # 开发模式
-pip install anthropic             # Claude（至少安装一个 AI SDK）
+pip install openai                # OpenAI（默认，推荐）
+pip install anthropic             # Claude
 pip install google-genai          # Gemini
-pip install openai                # GPT / Qwen
 pip install sentence-transformers # 可选：向量语义检索增强
 ```
 
@@ -344,11 +397,11 @@ GeoClaw_Claude/
 │   ├── skill_manager.py        # Skill 注册/执行/导出/安全
 │   ├── skill_auditor.py        # SkillAuditor：25+ 规则静态安全审计
 │   ├── nl/                     # 自然语言系统
-│   │   ├── processor.py        # NLProcessor：意图解析
+│   │   ├── processor.py        # NLProcessor：意图解析（AI 优先，无 Key 时引导）
 │   │   ├── executor.py         # NLExecutor：GIS 执行
-│   │   ├── agent.py            # GeoAgent：多轮对话 + 个性化
+│   │   ├── agent.py            # GeoAgent：多轮对话 + 活人感记忆注入
 │   │   ├── profile_manager.py  # ProfileManager：soul.md / user.md
-│   │   └── llm_provider.py     # LLMProvider：多 Provider
+│   │   └── llm_provider.py     # LLMProvider：多 Provider + gpt-5.x 兼容
 │   ├── analysis/
 │   │   ├── spatial_ops.py
 │   │   ├── network.py
@@ -359,7 +412,7 @@ GeoClaw_Claude/
 │   └── skills/builtin/         # 15 个内置 Skill
 ├── data/                       # 武汉 GIS 数据 + GPS 轨迹数据
 ├── examples/                   # 案例脚本（武汉/景德镇商场选址）
-├── tests/                      # 521 项测试，全部通过
+├── tests/                      # 577 项测试，全部通过
 └── docs/                       # 技术文档（docx + pdf）
 ```
 
@@ -368,11 +421,11 @@ GeoClaw_Claude/
 ## 测试矩阵
 
 | 测试文件 | 项目数 | 覆盖范围 |
-|---------|--------|---------|
+|---------|--------|---------| 
 | `test_sre_phase3.py` | 72 | SRE Phase 3：uncertainty / analysis_mode / sensitivity / MAUP |
 | `test_sre_phase2.py` | 76 | SRE Phase 2：template_library / primitive_resolver / llm_reasoner |
 | `test_sre_phase1.py` | 59 | SRE Phase 1：schemas / task_typer / rule_engine / validator |
-| `test_agentskills_compat.py` ✨ | 21 | AgentSkills 兼容导出（字段/导出/批量/CLI）|
+| `test_agentskills_compat.py` | 21 | AgentSkills 兼容导出（字段/导出/批量/CLI）|
 | `test_v311_fixes.py` | 34 | key 脱敏 / render 函数 / output_dir / chat action |
 | `test_v310_new.py` | 30 | Ollama provider / ProfileUpdater / v3.1.0 集成 |
 | `test_skills_and_security.py` | 40 | Skill 系统 + SkillAuditor 安全审计 |
@@ -383,7 +436,7 @@ GeoClaw_Claude/
 | `test_nl.py` | 20 | NLProcessor / NLExecutor / GeoAgent |
 | `test_mobility.py` | 20 | GPS 层级生成 / 移动性指标 / 可视化 |
 | `test_updater.py` | 20 | VersionInfo / check / update / self_check |
-| **合计** | **521** | **全部 ✅** |
+| **合计** | **577** | **全部 ✅** |
 
 ---
 
@@ -391,9 +444,10 @@ GeoClaw_Claude/
 
 | 版本 | 时间 | 亮点 |
 |------|------|------|
-| **v3.1.3** 🆕 | 2026-03 | OpenClaw / AgentSkills 兼容导出；`agentskills_compat` 字段；`skill export` CLI；521 测试 ✅ |
+| **v3.1.4** 🆕 | 2026-03 | 活人感记忆对话系统；AI 优先引导；gpt-5.x/o-series 兼容；577 测试 ✅ |
+| **v3.1.3** | 2026-03 | OpenClaw / AgentSkills 兼容导出；`agentskills_compat` 字段；`skill export` CLI |
 | **v3.1.2** | 2026-03 | 15 个内置 Skill 全就绪；对话驱动 user.md 更新；500 测试 ✅ |
-| **v3.1.1** | 2026-03 | render 函数修复；chat action；无 GUI 兼容；500 测试 ✅ |
+| **v3.1.1** | 2026-03 | render 函数修复；chat action；无 GUI 兼容 |
 | **v3.1.0** | 2026-03 | Ollama 离线大模型；ProfileUpdater；Provider 自动切换 |
 | **v3.0.0** | 2026-03 | SRE Phase 3：五维不确定性、AnalysisMode、敏感性、MAUP；466 测试 ✅ |
 | v2.5.0-alpha | 2026-02 | SRE Phase 1+2：rule_engine / template_library / llm_reasoner |
@@ -411,9 +465,9 @@ GeoClaw_Claude/
 
 | 文档 | 说明 |
 |------|------|
-| [Technical Reference v3.1.3](docs/GeoClaw-claude_Technical_Reference_v3.1.3.pdf) | 完整技术架构参考 |
-| [User Guide v3.1.3](docs/GeoClaw-claude_User_Guide_v3.1.3.pdf) | 用户使用手册 |
-| [Beginner Guide v3.1.0](docs/GeoClaw-claude_Beginner_Guide_v3.1.0.pdf) | 新手入门 |
+| [Technical Reference v3.1.4](docs/GeoClaw-claude_Technical_Reference_v3.1.4.pdf) | 完整技术架构参考 |
+| [User Guide v3.1.4](docs/GeoClaw-claude_User_Guide_v3.1.4.pdf) | 用户使用手册 |
+| [Beginner Guide v3.1.4](docs/GeoClaw-claude_Beginner_Guide_v3.1.4.pdf) | 新手入门 |
 | [Skill Writing Guide](docs/SKILL_WRITING_GUIDE.pdf) | Skill 编写规范（含 agentskills_compat 说明）|
 
 ---
