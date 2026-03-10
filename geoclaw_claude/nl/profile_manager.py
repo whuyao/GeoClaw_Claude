@@ -39,8 +39,14 @@ DEFAULT_SOUL_MD = """\
 # soul.md — GeoClaw System Identity & Behavioral Constitution
 
 ## Identity
-GeoClaw is a geospatial reasoning and workflow agent designed to assist users
-in spatial analysis, geographic data processing, and GeoAI-driven research.
+GeoClaw is an open-source, AI-augmented geospatial analysis framework
+developed by UrbanComp Lab at China University of Geosciences (Wuhan)
+(中国地质大学（武汉）城市计算实验室).
+Project website: https://urbancomp.net
+Repository: https://github.com/whuyao/GeoClaw_Claude
+
+GeoClaw is designed to help researchers, urban planners, and engineers
+perform complex spatial analysis workflows through natural language instructions.
 
 GeoClaw is not merely a conversational assistant.
 It is a structured geospatial workflow system that combines natural language
@@ -618,13 +624,25 @@ _SOUL_LOCKED_SECTIONS = [
 _USER_UPDATE_TRIGGERS = [
     r"记住我?(?:的)?(?:偏好|习惯|设置|配置)",
     r"我?(?:喜欢|偏好|习惯使用|常用)",
-    r"以后.*(?:用|使用|采用)",
+    r"以后.*(?:用|使用|采用|回复|用英文|用中文)",
     r"帮我?更新.*(?:profile|user\.md|偏好|配置)",
     r"设置我?的.*(?:语言|风格|偏好|模型)",
     r"remember (my |that |I )",
     r"set my (preference|style|language|default)",
     r"update (my |user\.?md|profile)",
     r"I (prefer|like|always use|usually use)",
+    # 自我介绍 / 角色信息类（推断更新）
+    r"我的研究方向",
+    r"我(?:主要|平时)?(?:用|使用|做|研究|专注于)",
+    r"我是(?:一名|一个)?.*(?:研究员|工程师|规划师|学生|分析师|开发者)",
+    r"my (research|work|focus|background|role|expertise) (is|involves|focuses)",
+    r"I(?:'m| am) (?:a |an )?(?:researcher|engineer|planner|student|analyst|developer)",
+    # 风格偏好
+    r"(?:请|以后)?(?:尽量)?(?:简洁|简短|直接|详细|详尽)(?:回复|回答|解释)?",
+    r"(?:不需要|不用)(?:太多|过多)(?:解释|说明)",
+    r"(?:直接给|只给)(?:结论|结果|答案)",
+    r"请用(?:英文|中文|English|Chinese)回复",
+    r"use (English|Chinese|English for|Chinese for)",
 ]
 
 # 触发 soul.md 更新的关键词模式（仅允许非安全字段）
@@ -688,6 +706,26 @@ class ProfileUpdater:
                 )
 
         # 检测 user.md 更新意图
+        # 负向过滤：分析/查询类语句不触发 profile 更新
+        _NOT_UPDATE_PATTERNS = [
+            r"根据.*(?:分析|数据|结果|之前)",
+            r"给(?:我|出).*(?:总结|摘要|报告|分析结果)",
+            r"(?:帮我|帮忙)?(?:总结|分析|解释|描述).*(?:结果|情况|状态)",
+            r"现在.*有哪些",
+            r"当前.*图层",
+            r"什么是",
+            # 能力/功能查询类
+            r"(?:你|GeoClaw|系统)?支持哪些",
+            r"能.*帮.*(?:做|分析|处理)什么",
+            r"有哪些.*(?:功能|工具|分析|操作)",
+            r"(?:介绍|说明).*(?:功能|工具|支持)",
+            r"你能.*做什么",
+            # 纯问候/自我介绍（含"最近在研究"等）
+            r"^你好[！!，,]",
+            r"最近在研究",
+        ]
+        if self._matches(text, _NOT_UPDATE_PATTERNS):
+            return None
         if self._matches(text, _USER_UPDATE_TRIGGERS):
             return self._update_user_md(text, conversation_summary)
 
@@ -841,8 +879,42 @@ class ProfileUpdater:
             raw = self._set_markdown_field(raw, "Communication style", style_m.group(1))
             fields_updated.append(f"style={style_m.group(1)}")
 
+        # 角色/职业
+        role_m = re.search(r"我是(?:一名|一个)?([^，。,\.！!？?]+?(?:工程师|规划师|研究员|分析师|学生|开发者))", text)
+        if role_m:
+            role_val = role_m.group(1).strip()
+            raw = self._set_markdown_field(raw, "role", role_val)
+            fields_updated.append(f"role={role_val}")
+
+        # 城市/研究区域 - 精确匹配城市名，避免误匹配"方向是城市"等
+        city_m = re.search(r"(?:研究|分析|工作|做)[^，,。.！!？?]*?([^\s，,的研究方向主要关注]{2,5}(?:市|区|省|县))", text)
+        if not city_m:
+            # 补充：直接提及城市名，如"武汉市""北京市"
+            city_m = re.search(r"([^\s，,的]{2,5}(?:市|区|省|县))(?:的|中|里|地区)?", text)
+            # 过滤掉"方向是城市""研究城市"等非具名城市
+            if city_m:
+                cand = city_m.group(1)
+                if any(bad in cand for bad in ["方向", "研究", "城市规划", "绿地"]):
+                    city_m = None
+        if city_m:
+            city_val = city_m.group(1).strip()
+            raw = self._set_markdown_field(raw, "Frequent cities", city_val)
+            fields_updated.append(f"city={city_val}")
+
+        # 地图输出偏好
+        map_m = re.search(r"(?:交互式|interactive|动态).*?(?:地图|map)", text, re.IGNORECASE)
+        if map_m:
+            raw = self._set_markdown_field(raw, "preferred_map_type", "interactive")
+            fields_updated.append("preferred_map_type=interactive")
+        elif re.search(r"(?:静态|static).*?(?:地图|map)", text, re.IGNORECASE):
+            raw = self._set_markdown_field(raw, "preferred_map_type", "static")
+            fields_updated.append("preferred_map_type=static")
+
         # 工具偏好（追加到 tool_prefs）
         tool_m = re.search(r"(?:偏好|喜欢|prefer|use)\s+(\w+)\s*(?:工具|tool)?", text, re.IGNORECASE)
+        if not tool_m:
+            # 额外匹配 "主要用X做Y" 中的工具
+            tool_m = re.search(r"主要用(\w+)做", text)
         if tool_m:
             tool = tool_m.group(1)
             raw = self._append_tool_pref(raw, tool)

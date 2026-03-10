@@ -137,10 +137,26 @@ class GeoAgent:
         # ── 检测 profile 更新意图（优先于 GIS 操作解析）─────────────────────
         profile_result = self._profile_updater.maybe_update(text)
         if profile_result is not None:
-            msg = profile_result.message
             if profile_result.blocked:
-                msg = f"[安全锁定] {profile_result.message}"
-            return self._add_agent_msg(msg)
+                return self._add_agent_msg(f"[安全锁定] {profile_result.message}")
+            # 如果有实质字段更新，记录后继续走 chat/NL 流程给用户回应
+            # 只有纯偏好设置类（没有其他意图）才直接返回确认消息
+            _EXPLICIT_PREF_PATTERNS = [
+                r"记住.*(?:偏好|习惯|设置)",
+                r"帮我?更新.*(?:profile|user\.md|偏好)",
+                r"设置我?的.*(?:语言|风格)",
+                r"以后.*(?:用|使用|采用)",
+                r"请用(?:英文|中文)回复",
+            ]
+            import re as _re
+            is_explicit_pref = any(_re.search(p, text) for p in _EXPLICIT_PREF_PATTERNS)
+            if is_explicit_pref:
+                return self._add_agent_msg(profile_result.message)
+            # 自我介绍/研究背景类：更新 profile 后，附加上下文继续回答用户
+            # 把 profile 更新消息附加到上下文，然后走 chat 流程
+            if profile_result.changed:
+                self._add_agent_msg(profile_result.message)
+            # 继续走后续解析流程给用户实质回应
 
         # ── 解析意图 ──────────────────────────────────────────────────────────
         context = self._build_context()
@@ -164,7 +180,7 @@ class GeoAgent:
                 try:
                     resp = self._proc._llm.chat(
                         messages=[{"role": "user", "content": text}],
-                        system="你是 GeoClaw-claude，一个 GIS 智能助手。用中文友好地回复用户。"
+                        system="你是 GeoClaw，由中国地质大学（武汉）UrbanComp Lab（城市计算实验室）开发的开源智能地理空间分析框架。你帮助研究人员、城市规划师和工程师通过自然语言完成复杂的空间分析工作流。用中文友好地回复用户。"
                     )
                     reply = resp.content if resp else "有什么我可以帮你的？"
                 except Exception:
@@ -180,7 +196,7 @@ class GeoAgent:
                 try:
                     resp = self._proc._llm.chat(
                         messages=[{"role": "user", "content": text}],
-                        system="你是 GeoClaw-claude，一个 GIS 智能助手。用中文友好地回复用户，如果是 GIS 需求请说明如何描述，其他问题直接回答。"
+                        system="你是 GeoClaw，由中国地质大学（武汉）UrbanComp Lab（城市计算实验室）开发的开源智能地理空间分析框架。用中文友好地回复用户，如果是 GIS 需求请说明如何描述，其他问题直接回答。"
                     )
                     reply = resp.content if resp else f"抱歉，我没理解「{text}」，请换个说法或输入「帮助」查看支持的操作。"
                     return self._add_agent_msg(reply, intent=intent)

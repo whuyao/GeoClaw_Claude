@@ -93,6 +93,8 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 | check_update | 检测更新 | (无参数) |
 | memory_status | 查看记忆状态 | (无参数) |
 | memory_search | 搜索记忆 | query(关键词) |
+| skill_run | 运行指定 Skill（如 hospital_coverage/vec_kde/net_isochrone 等） | name(Skill名称), 其余为Skill参数 |
+| skill_list | 列出所有可用 Skill | (无参数) |
 | help | 帮助信息 | topic(可选主题) |
 | tool_run | 执行本地工具 | tool(工具名), 工具参数... |
 | react   | ReAct智能体完成复杂任务 | task(任务描述), max_steps(可选,默认12) |
@@ -151,10 +153,20 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 - overlay 操作映射：intersect/相交 → action="intersect"；union/合并 → action="union"；clip/裁剪 → action="clip"
 - zonal_stats 用于"按区域统计"、"分区统计"、"各区/各县统计"等场景，不要映射到 react
 - tool_run 示例: "查找 ~/data 下所有 geojson 文件" → action="tool_run", params={"tool":"file_find","pattern":"*.geojson","root":"~/data"}
+- skill_run 示例: "运行 hospital_coverage Skill，radius_km=1.0" → action="skill_run", params={"name":"hospital_coverage","radius_km":"1.0"}
+- skill_run 示例: "运行 vec_kde Skill 对医院数据做核密度 bandwidth=0.05" → action="skill_run", params={"name":"vec_kde","bandwidth":"0.05"}
+- **反例（绝对不用 skill_run）**: "对医院做核密度分析 bandwidth=800" → action="kde", params={"bandwidth":800}（没有提到 Skill 名称）
+- **反例（绝对不用 skill_run）**: "计算 10 分钟等时圈" → action="isochrone"（没有提到 Skill 名称）
+- **区分规则**: skill_run 仅用于用户明确指定了 Skill 名称（如 hospital_coverage/vec_kde/net_isochrone）的场景；否则统一用直接 GIS action
+- **重要**: "运行 X Skill"/"执行 X Skill"/"用 X Skill 做" 这类**明确提到 Skill 名称**的指令，才用 action="skill_run"
+- **重要**: "做核密度分析"/"缓冲区"/"等时圈"/"下载OSM" 等直接描述 GIS 操作的指令，**不要**用 skill_run，要用对应的 GIS action（kde/buffer/isochrone/download_osm 等）
 - react 仅用于需要多工具协作的复杂任务（如文件系统探索、代码执行），普通 GIS 操作不要用 react
+- **status action**：查询当前会话状态、图层列表时，使用 action="status"（不要用 chat 自行回答）。
+  触发词：「有哪些图层」「查看图层」「当前图层」「图层列表」「列出图层」
+  示例：「现在有哪些图层？」→ {"action":"status","params":{},"targets":[],"confidence":0.95,"explanation":"查询图层"}
 - **重要**：对于非 GIS 操作的输入（问候、闲聊、感谢、提问、GIS 建议、工具推荐等），使用 action="chat"，
   在 params.reply 中用中文直接回复，不要返回 unknown。
-  例如 "你好" → {"action":"chat","params":{"reply":"你好！我是 GeoClaw，有什么 GIS 分析需要帮忙？"},"targets":[],"confidence":1.0,"explanation":"问候"}
+  例如 "你好" → {"action":"chat","params":{"reply":"你好！我是 GeoClaw，由中国地质大学（武汉）UrbanComp Lab 开发的开源智能地理空间分析框架。有什么 GIS 分析需要帮忙？"},"targets":[],"confidence":1.0,"explanation":"问候"}
   例如 "应该用哪种 Skill？" → {"action":"chat","params":{"reply":"根据你的分析需求，建议使用..."},"targets":[],"confidence":0.9,"explanation":"工具建议"}
 - 只有真正无法理解的输入才返回 action="unknown"
 """
@@ -271,6 +283,21 @@ class NLProcessor:
                                 explanation="输入为空")
 
         if self._use_ai:
+            # 高优先级关键词前置过滤：部分 GIS 操作不需要走 AI，直接规则解析更可靠
+            t_lower = text.strip().lower()
+            _kde_kw    = ["核密度", "kde", "密度热力", "密度分析"]
+            _iso_kw    = ["等时圈", "isochrone", "分钟内可达", "分钟步行圈"]
+            _skill_kw  = ["skill", "技能"]
+            _has_skill = any(k in t_lower for k in _skill_kw)
+            if not _has_skill:
+                if any(k in text for k in _kde_kw):
+                    intent = self._parse_with_rules(text, context)
+                    intent.raw_text = text
+                    return intent
+                if any(k in text for k in _iso_kw):
+                    intent = self._parse_with_rules(text, context)
+                    intent.raw_text = text
+                    return intent
             intent = self._parse_with_ai(text, context)
         else:
             intent = self._parse_with_rules(text, context)
@@ -692,9 +719,9 @@ class NLProcessor:
 
         # 问候 / 闲聊
         if any(w in t for w in ["你好", "hello", "hi", "嗨", "您好"]):
-            return ParsedIntent(action="chat", params={"reply": "你好！我是 GeoClaw 智能 GIS 助手。你可以用自然语言让我帮你下载地图数据、做缓冲区分析、路网分析、可视化等。输入「帮助」查看更多示例。"}, targets=[], confidence=1.0, explanation="问候")
+            return ParsedIntent(action="chat", params={"reply": "你好！我是 GeoClaw，由中国地质大学（武汉）UrbanComp Lab 开发的开源智能地理空间分析框架。你可以用自然语言让我帮你下载地图数据、做缓冲区分析、路网分析、可视化等。输入「帮助」查看更多示例。"}, targets=[], confidence=1.0, explanation="问候")
         if any(w in t for w in ["能做什么", "你是谁", "介绍一下", "有什么功能"]):
-            return ParsedIntent(action="chat", params={"reply": "我是 GeoClaw GIS 分析助手，支持：\n• 下载 OSM 地图数据（城市、POI、路网）\n• 缓冲区 / 叠加 / 最近邻 / 核密度分析\n• 路网最短路 / 等时圈\n• 静态地图 / 交互地图生成\n输入「帮助」查看完整命令列表。"}, targets=[], confidence=1.0, explanation="功能介绍")
+            return ParsedIntent(action="chat", params={"reply": "我是 GeoClaw，由中国地质大学（武汉）UrbanComp Lab（城市计算实验室）开发的开源 GIS 分析框架，支持：\n• 下载 OSM 地图数据（城市、POI、路网）\n• 缓冲区 / 叠加 / 最近邻 / 核密度分析\n• 路网最短路 / 等时圈\n• 静态地图 / 交互地图生成\n输入「帮助」查看完整命令列表。"}, targets=[], confidence=1.0, explanation="功能介绍")
         if any(w in t for w in ["谢谢", "感谢", "thank", "太棒了"]):
             return ParsedIntent(action="chat", params={"reply": "不客气！有其他 GIS 分析需求随时告诉我。"}, targets=[], confidence=1.0, explanation="感谢")
         if "缓冲区" in t and "什么" in t:
