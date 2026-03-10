@@ -1,3 +1,50 @@
+## v3.1.2 (2026-03-10) — 扩展 Skill 生态系统 + 对话驱动 user.md 更新
+
+### 新增 Skill（15个内置 Skill 全部就绪）
+
+#### 矢量分析 Skill（vec_*）
+- **vec_buffer** — 矢量缓冲区分析：点/线/面生成指定半径缓冲区，支持合并与面积统计
+- **vec_kde** — 核密度估计（KDE）：点要素空间聚集热点分析，生成密度栅格图
+- **vec_overlay** — 矢量叠加分析：clip / intersect / union 三种叠加操作
+- **vec_spatial_join** — 空间连接与最近邻：按空间关系连接属性，计算最近邻距离
+- **vec_zonal_stats** — 分区统计：按区域多边形聚合统计目标图层
+
+#### 栅格分析 Skill（rst_*）
+- **rst_terrain** — DEM 地形分析：坡度、坡向、山体阴影，含统计摘要
+- **rst_reclassify** — 栅格重分类与运算：分级映射 + 多波段表达式（NDVI 等）
+- **rst_zonal_clip** — 栅格三合一：分区统计 / 矢量掩膜裁剪 / 空间重采样
+
+#### 路网分析 Skill（net_*）
+- **net_isochrone** — 等时圈分析：设施点可达路网服务区范围
+- **net_shortest_path** — 最短路径分析：路网起终点最短/最快路径 + 距离时间统计
+- **net_stats** — 路网统计：节点数/边数/度/总长度/连通性等拓扑指标
+
+#### 选址分析 Skill（retail_site_*）
+- **retail_site_algo** — 商场选址（纯算法版）：MCDA 多准则决策分析加权评分
+- **retail_site_ai** — 商场选址（AI 版）：空间指标计算 + LLM 综合评判
+
+#### 环境分析 Skill（env_*）
+- **env_heat_island** — 城市热岛效应分析：不透水面/绿化/水体指标 → UHI 指数网格 + AI 解读
+
+#### 医疗设施 Skill
+- **hospital_coverage** — 医院服务覆盖分析：缓冲区叠加 + 覆盖率统计 + AI 解读
+
+### 新功能：对话驱动 user.md 自动更新（ProfileUpdater 增强）
+- **隐式偏好推断**：`agent.end()` 时自动分析对话内容，无需用户主动触发
+- **城市偏好**（`## Region Preference`）：对话中出现 ≥2 次的城市名自动记录
+- **研究领域推断**（`## Inferred Research Domain`）：基于关键词评分推断主要研究方向
+- **会话摘要**（`## Session Insights`）：每次会话自动追加时间戳摘要，保留历史记录
+- **语言偏好**：统计中英文字符比例动态更新 preferred_lang
+- **沟通风格**：根据平均消息长度推断 brief / detailed 风格
+- **批量写入**：所有变更一次写入，避免重复追加
+
+### 修复
+- **env_heat_island.py 文件截断** → 已补全完整实现（133行）
+
+### 测试
+- 所有 15 个 Skill 导入测试通过（SKILL_META 完整性验证）
+- 全量回归：500/500 ✅
+
 ## v3.1.1 (2026-03-09) — 安全、交互与可靠性修复
 
 ### 关键修复

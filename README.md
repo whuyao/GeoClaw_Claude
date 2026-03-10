@@ -17,14 +17,15 @@
 > **UrbanComp Lab** 出品的轻量级 Python 城市地理信息分析工具集
 > https://urbancomp.net
 
-[![Version](https://img.shields.io/badge/version-3.1.1-blue)](CHANGELOG.md) [![Tests](https://img.shields.io/badge/tests-500%2F500-brightgreen)](tests/) [![Security](https://img.shields.io/badge/security-sandbox_recommended-orange)](README.md#安全声明)
+[![Version](https://img.shields.io/badge/version-3.1.2-blue)](CHANGELOG.md) [![Tests](https://img.shields.io/badge/tests-500%2F500-brightgreen)](tests/) [![Security](https://img.shields.io/badge/security-sandbox_recommended-orange)](README.md#安全声明)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-466%2F466-brightgreen)](#测试矩阵)
+[![Tests](https://img.shields.io/badge/tests-500%2F500-brightgreen)](#测试矩阵)
 [![LLM](https://img.shields.io/badge/LLM-Claude%20%7C%20Gemini%20%7C%20GPT%20%7C%20Qwen%20%7C%20Ollama-blueviolet)](#多-llm-provider)
 [![trackintel](https://img.shields.io/badge/mobility-trackintel-9cf)](https://github.com/mie-lab/trackintel)
 [![SRE](https://img.shields.io/badge/SRE-Phase%203%20%E2%9C%85-7B2D8B)](#spatial-reasoning-engine-sre-v300-新增)
 [![Ollama](https://img.shields.io/badge/Ollama-local%20LLM-green)](#ollama-本地大模型支持--v310-新增)
+[![Skills](https://img.shields.io/badge/builtin%20skills-15-success)](#内置-skill-列表)
 
 参考 QGIS Processing Framework 设计，专注于城市地理空间数据分析。核心理念是用**自然语言**直接驱动 GIS 操作：一句话完成从数据加载、空间分析到制图输出的完整流水线。
 
@@ -910,11 +911,31 @@ Skill 是 GeoClaw-claude 的核心扩展机制——一个符合统一规范的 
 
 ### 内置 Skill 列表
 
-| Skill 名称 | 类型 | 说明 | 需要 AI |
+v3.1.2 共提供 **15 个**内置 Skill，覆盖矢量分析、栅格处理、路网分析、选址分析、环境评估、医疗设施六大类。
+
+| Skill 名称 | 分类 | 说明 | 需要 AI |
 |-----------|------|------|--------|
-| `hospital_coverage` | 医疗可达性 | 医院服务缓冲区覆盖分析 + AI 解读 | 可选 |
-| `retail_site_ai` ✨ | 商业选址 | 商场选址 AI 综合评判版（LLM 推理） | 是 |
-| `retail_site_algo` ✨ | 商业选址 | 商场选址 MCDA 算法版（可复现） | 否 |
+| **矢量分析** | | | |
+| `vec_buffer` | 矢量 | 缓冲区分析：点/线/面，支持合并与面积统计 | 可选 |
+| `vec_kde` | 矢量 | 核密度估计（KDE）：点要素聚集热点 | 可选 |
+| `vec_overlay` | 矢量 | 叠加分析：clip / intersect / union | 否 |
+| `vec_spatial_join` | 矢量 | 空间连接与最近邻分析 | 否 |
+| `vec_zonal_stats` | 矢量 | 分区统计：数量/面积/均值聚合 | 否 |
+| **栅格分析** | | | |
+| `rst_terrain` | 栅格 | DEM 地形分析：坡度/坡向/山体阴影 | 可选 |
+| `rst_reclassify` | 栅格 | 栅格重分类与多波段运算（NDVI 等） | 否 |
+| `rst_zonal_clip` | 栅格 | 分区统计 / 掩膜裁剪 / 空间重采样 三合一 | 否 |
+| **路网分析** | | | |
+| `net_isochrone` | 路网 | 等时圈分析：设施点路网服务区范围 | 可选 |
+| `net_shortest_path` | 路网 | 最短路径分析：距离+时间统计 | 可选 |
+| `net_stats` | 路网 | 路网拓扑统计：节点/边/连通性指标 | 可选 |
+| **选址分析** | | | |
+| `retail_site_algo` | 选址 | 商场选址 MCDA 算法版（可复现） | 否 |
+| `retail_site_ai` | 选址 | 商场选址 AI 综合评判版（LLM 推理） | 是 |
+| **环境分析** | | | |
+| `env_heat_island` | 环境 | 城市热岛效应分析：UHI 指数网格 + AI 解读 | 可选 |
+| **医疗设施** | | | |
+| `hospital_coverage` | 医疗 | 医院服务覆盖分析：缓冲区 + 覆盖率 + AI 解读 | 可选 |
 
 ### Skill 管理命令
 
@@ -1235,8 +1256,20 @@ geoclaw-claude memory archive stats
 | `memory/archive` | MemoryArchive：会话快照存档系统 ✨ |
 | `memory/vector_search` | VectorSearch：TF-IDF / 神经网络语义检索 ✨ |
 | `skills/builtin/hospital_coverage` | 内置 Skill：医院覆盖分析 |
-| `skills/builtin/retail_site_ai` | 内置 Skill：商场选址 AI 驱动版 ✨ v2.4.0 |
-| `skills/builtin/retail_site_algo` | 内置 Skill：商场选址 MCDA 算法版 ✨ v2.4.0 |
+| `skills/builtin/retail_site_ai` | 内置 Skill：商场选址 AI 驱动版 |
+| `skills/builtin/retail_site_algo` | 内置 Skill：商场选址 MCDA 算法版 |
+| `skills/builtin/env_heat_island` | 内置 Skill：城市热岛效应分析 |
+| `skills/builtin/net_isochrone` | 内置 Skill：等时圈分析 |
+| `skills/builtin/net_shortest_path` | 内置 Skill：最短路径分析 |
+| `skills/builtin/net_stats` | 内置 Skill：路网统计 |
+| `skills/builtin/rst_terrain` | 内置 Skill：DEM 地形分析 |
+| `skills/builtin/rst_reclassify` | 内置 Skill：栅格重分类与运算 |
+| `skills/builtin/rst_zonal_clip` | 内置 Skill：栅格三合一处理 |
+| `skills/builtin/vec_buffer` | 内置 Skill：矢量缓冲区分析 |
+| `skills/builtin/vec_kde` | 内置 Skill：核密度估计 |
+| `skills/builtin/vec_overlay` | 内置 Skill：矢量叠加分析 |
+| `skills/builtin/vec_spatial_join` | 内置 Skill：空间连接与最近邻 |
+| `skills/builtin/vec_zonal_stats` | 内置 Skill：分区统计 |
 | `skill_manager` | Skill 注册/执行/安全审计管理 |
 | `skill_auditor` | SkillAuditor：AST+正则静态安全扫描（25+ 规则）✨ v2.4.0 |
 | `updater` | 版本自检、自动更新、健康检测 |
@@ -1318,8 +1351,21 @@ GeoClaw_Claude/
 │   │   └── vector_search.py          # 向量语义检索 ✨ v2.3.0
 │   ├── skills/
 │   │   └── builtin/
+│   │       ├── env_heat_island.py    # 内置 Skill：城市热岛效应分析
 │   │       ├── hospital_coverage.py  # 内置 Skill：医院覆盖分析
-│   │       ├── retail_site_ai.py     # 内置 Skill：商场选址 AI 版 ✨ v2.4.0
+│   │       ├── net_isochrone.py      # 内置 Skill：等时圈分析
+│   │       ├── net_shortest_path.py  # 内置 Skill：最短路径分析
+│   │       ├── net_stats.py          # 内置 Skill：路网统计
+│   │       ├── retail_site_ai.py     # 内置 Skill：商场选址 AI 版
+│   │       ├── retail_site_algo.py   # 内置 Skill：商场选址算法版
+│   │       ├── rst_reclassify.py     # 内置 Skill：栅格重分类
+│   │       ├── rst_terrain.py        # 内置 Skill：DEM 地形分析
+│   │       ├── rst_zonal_clip.py     # 内置 Skill：栅格裁剪统计
+│   │       ├── vec_buffer.py         # 内置 Skill：缓冲区分析
+│   │       ├── vec_kde.py            # 内置 Skill：核密度估计
+│   │       ├── vec_overlay.py        # 内置 Skill：矢量叠加分析
+│   │       ├── vec_spatial_join.py   # 内置 Skill：空间连接
+│   │       └── vec_zonal_stats.py    # 内置 Skill：分区统计
 │   │       └── retail_site_algo.py   # 内置 Skill：商场选址算法版 ✨ v2.4.0
 │   ├── cartography/
 │   ├── io/
