@@ -250,7 +250,8 @@ class GeoAgent:
         return self._add_agent_msg(reply, intent=intent, result=er)
 
     def _format_success(self, intent: ParsedIntent, er: ExecutionResult) -> str:
-        lines = [f"✓ {er.message}"]
+        msg = er.message or ""
+        lines = [f"✓ {msg}" if not msg.startswith("✓") else msg]
         # 展示结果摘要
         result = er.result
         if result is not None:

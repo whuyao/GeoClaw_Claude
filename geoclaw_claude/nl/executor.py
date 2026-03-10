@@ -1192,6 +1192,32 @@ class NLExecutor:
 
         # 构建 SkillContext
         skill_params = {k: v for k, v in p.items() if k != "name"}
+        # ── 参数键名别名映射（容纳 LLM 的不同命名习惯）──────────────────────
+        _KEY_ALIASES = {
+            # vec_buffer
+            "merge": "dissolve", "dissolve_result": "dissolve",
+            # retail_site_algo / retail_site_ai
+            "candidate_layer": "input", "candidates": "input",
+            "population_layer": "pop_layer", "pop_grid": "pop_layer",
+            "competitor_layer": "comp_layer", "competition_layer": "comp_layer",
+            "road_network": "road_layer", "transit_layer": "road_layer",
+            "pop_weight": "w_pop", "w_population": "w_pop",
+            "comp_weight": "w_comp", "w_competition": "w_comp",
+            "dispersion_weight": "w_disp", "w_dispersion": "w_disp",
+            "road_weight": "w_road", "w_traffic": "w_road",
+            "top": "top_n", "n_recommend": "top_n", "recommend": "top_n",
+            # hospital_coverage
+            "hospital_layer": "hospitals", "hospital": "hospitals",
+            "study_boundary": "boundary", "region": "boundary",
+            "service_radius": "radius_km",
+            # zonal_stats
+            "value_field": "value_col", "stat_field": "value_col",
+            # general
+            "output": "output_name", "save_as": "output_name",
+        }
+        for alias, canonical in _KEY_ALIASES.items():
+            if alias in skill_params and canonical not in skill_params:
+                skill_params[canonical] = skill_params.pop(alias)
         # 预处理: 拆分 center="lon,lat" → center_lon, center_lat
         if "center" in skill_params and "center_lon" not in skill_params:
             center_str = str(skill_params.pop("center"))

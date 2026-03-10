@@ -171,6 +171,9 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 - **关键**: 含"等时圈"/"最短路径"的请求即使同时提到地名，也必须识别为 isochrone/shortest_path，绝对不是 download_osm
 - skill_run 示例: "运行 hospital_coverage Skill，radius_km=1.0" → action="skill_run", params={"name":"hospital_coverage","radius_km":"1.0"}
 - skill_run 示例: "运行 vec_kde Skill 对医院数据做核密度 bandwidth=0.05" → action="skill_run", params={"name":"vec_kde","bandwidth":"0.05"}
+- skill_run 示例: "运行 vec_buffer Skill 对 parks 做1000米缓冲，合并重叠区域" → action="skill_run", params={"name":"vec_buffer","layer":"parks","distance":1000,"dissolve":true}  （"合并" 是Skill内部参数dissolve，不要拆成额外union步骤）
+- skill_run 示例: "运行 retail_site_algo Skill，候选点用parks，人口层pop_grid，人口权重0.4，竞争权重0.3，推荐3个" → action="skill_run", params={"name":"retail_site_algo","input":"parks","pop_layer":"pop_grid","w_pop":0.4,"w_comp":0.3,"top_n":3}
+- **关键规则**: skill_run 指令中所有参数（含Skill内部参数如dissolve/radius_km/w_pop等）都放在同一个skill_run的params中，绝不拆成pipeline步骤
 - **反例（绝对不用 skill_run）**: "对医院做核密度分析 bandwidth=800" → action="kde", params={"bandwidth":800}（没有提到 Skill 名称）
 - **反例（绝对不用 skill_run）**: "计算 10 分钟等时圈" → action="isochrone"（没有提到 Skill 名称）
 - **区分规则**: skill_run 仅用于用户明确指定了 Skill 名称（如 hospital_coverage/vec_kde/net_isochrone）的场景；否则统一用直接 GIS action
