@@ -19,6 +19,14 @@ SKILL_META = {
         {"name": "density", "type": "GeoLayer", "desc": "核密度栅格/矢量结果"},
         {"name": "report",  "type": "str",       "desc": "密度统计摘要"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Compute kernel density estimation (KDE) heatmap from point features. Identifies spatial clustering hotspots.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

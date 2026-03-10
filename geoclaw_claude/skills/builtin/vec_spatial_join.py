@@ -21,6 +21,14 @@ SKILL_META = {
         {"name": "result", "type": "GeoLayer", "desc": "连接结果图层"},
         {"name": "report", "type": "str",       "desc": "统计摘要"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Spatial join and nearest-neighbour analysis between two vector layers.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

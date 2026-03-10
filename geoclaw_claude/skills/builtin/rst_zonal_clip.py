@@ -22,6 +22,14 @@ SKILL_META = {
         {"name": "raster", "type": "RasterLayer", "desc": "处理后栅格（clip/resample）"},
         {"name": "report", "type": "str",          "desc": "统计或处理摘要"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Three-in-one raster tool: zonal statistics, mask clip by vector, and spatial resample.',
+        "requires_bins":      ['python3', 'geoclaw-claude', 'gdal-bin'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

@@ -18,6 +18,14 @@ SKILL_META = {
         {"name": "buffer",  "type": "GeoLayer", "desc": "缓冲区结果图层"},
         {"name": "report",  "type": "str",       "desc": "面积统计报告"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Run vector buffer analysis on GeoJSON/Shapefile layers. Generates coverage zones around point, line, or polygon features.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

@@ -22,6 +22,14 @@ SKILL_META = {
         {"name": "hillshade", "type": "RasterLayer", "desc": "山体阴影栅格"},
         {"name": "report",    "type": "str",          "desc": "地形统计摘要"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'DEM terrain analysis: compute slope, aspect, and hillshade from a raster elevation model.',
+        "requires_bins":      ['python3', 'geoclaw-claude', 'gdal-bin'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

@@ -505,3 +505,201 @@ def run(ctx):
 '''
         out.write_text(template, encoding="utf-8")
         return str(out)
+
+    # ── OpenClaw / AgentSkills 兼容导出 ───────────────────────────────────────
+
+    def export_openclaw(
+        self,
+        name: str,
+        output_dir: str = ".",
+        overwrite: bool = False,
+    ) -> str:
+        """
+        将 GeoClaw Skill 导出为 OpenClaw (AgentSkills) 兼容格式。
+
+        OpenClaw Skill 是一个目录，包含 SKILL.md（YAML frontmatter + Markdown 指令）。
+        导出后可直接安装到 OpenClaw：
+            clawhub install <output_dir>/<name>/
+
+        导出规则：
+          · SKILL_META["agentskills_compat"] 存在时，优先使用其中的字段覆盖默认值。
+          · 导出的 SKILL.md 指令段落描述如何通过 geoclaw-claude CLI 调用该 Skill，
+            让 OpenClaw Agent 能以 shell 方式驱动 GeoClaw。
+          · 如果 Skill 声明了 requires_env，导出时写入 metadata.openclaw.requires.env。
+
+        Args:
+            name      : 要导出的 Skill 名称
+            output_dir: 导出根目录（默认当前目录）
+            overwrite : 目标目录已存在时是否覆盖（默认 False）
+
+        Returns:
+            导出目录路径（<output_dir>/<name>/）
+
+        Raises:
+            KeyError       : Skill 不存在
+            FileExistsError: 目标目录已存在且 overwrite=False
+        """
+        self._ensure_loaded()
+
+        if name not in self._registry:
+            raise KeyError(f"Skill '{name}' 不存在。可用: {list(self._registry.keys())}")
+
+        entry = self._registry[name]
+        meta  = getattr(entry["module"], "SKILL_META", {})
+        compat: Dict = meta.get("agentskills_compat", {})
+
+        # ── 目标目录 ──────────────────────────────────────────────────────────
+        dest = Path(output_dir) / name
+        if dest.exists():
+            if not overwrite:
+                raise FileExistsError(
+                    f"目标目录已存在: {dest}\n使用 overwrite=True 或 --overwrite 参数强制覆盖。"
+                )
+            import shutil
+            shutil.rmtree(dest)
+        dest.mkdir(parents=True)
+
+        # ── 读取 compat 字段（可覆盖默认值） ─────────────────────────────────
+        export_name    = compat.get("export_name",        name)
+        export_desc    = compat.get("export_description", meta.get("description", ""))
+        requires_bins  = compat.get("requires_bins",      ["python3", "geoclaw-claude"])
+        requires_env   = compat.get("requires_env",       [])
+        homepage       = compat.get("homepage",           "https://github.com/whuyao/GeoClaw_Claude")
+        category       = meta.get("category",             "gis")
+        inputs         = meta.get("inputs",               [])
+        version        = meta.get("version",              "1.0.0")
+        author         = meta.get("author",               "UrbanComp Lab")
+
+        # ── 构建 metadata.openclaw（单行 JSON，OpenClaw 规范要求） ─────────────
+        import json
+        oc_meta: Dict = {
+            "requires": {"bins": requires_bins},
+            "homepage": homepage,
+        }
+        if requires_env:
+            oc_meta["requires"]["env"] = requires_env  # type: ignore[index]
+
+        metadata_json = json.dumps({"openclaw": oc_meta}, ensure_ascii=False)
+
+        # ── 构建输入参数说明段落 ───────────────────────────────────────────────
+        if inputs:
+            param_lines = ["| 参数 | 类型 | 说明 | 默认值 |",
+                           "|------|------|------|--------|"]
+            for inp in inputs:
+                default = inp.get("default", "—")
+                param_lines.append(
+                    f"| `{inp['name']}` | {inp.get('type','str')} "
+                    f"| {inp.get('desc','—')} | {default} |"
+                )
+            params_section = "\n## 参数\n\n" + "\n".join(param_lines)
+        else:
+            params_section = ""
+
+        # ── 构建 CLI 调用示例 ─────────────────────────────────────────────────
+        example_args = " ".join(
+            f"--{inp['name']}=<{inp['name']}>"
+            for inp in inputs
+            if inp.get("name") not in ("input", "output")
+        )
+        cli_example = (
+            f"geoclaw-claude skill run {name} "
+            f"--data <input.geojson> "
+            f"{example_args} --output <output_dir/>"
+        ).strip()
+
+        # ── 组装 SKILL.md ─────────────────────────────────────────────────────
+        skill_md = f"""\
+---
+name: {export_name}
+description: {export_desc}
+homepage: {homepage}
+metadata: {metadata_json}
+---
+
+# {export_name}
+
+> GeoClaw-Claude built-in skill · v{version} · {author}
+> Category: `{category}`
+
+## 概述
+
+{export_desc}
+
+## 使用方式
+
+这是一个 **GeoClaw GIS Skill**，通过 `geoclaw-claude` CLI 调用。
+在调用前请确认已安装 GeoClaw：`pip install geoclaw-claude`
+
+## 调用步骤
+
+1. 准备输入数据（GeoJSON / Shapefile / GeoPackage 格式均可）
+2. 执行以下命令：
+
+```bash
+{cli_example}
+```
+
+3. 结果将保存到 `<output_dir>/`，包含 GeoJSON 图层和分析报告
+{params_section}
+## 输出
+
+| 文件 | 说明 |
+|------|------|
+| `*.geojson` | 分析结果图层（可在 QGIS / ArcGIS / Kepler.gl 中打开） |
+| `*.txt` / `*.md` | AI 分析报告（如启用 `--ai` 参数） |
+
+## 注意
+
+- 需要 Python 3.9+ 与 `geoclaw-claude` 包（`pip install geoclaw-claude`）
+- 启用 AI 解读需配置 LLM API Key（`geoclaw-claude config set anthropic_api_key sk-...`）
+- 更多内置 GIS Skill 见：{homepage}
+"""
+
+        skill_md_path = dest / "SKILL.md"
+        skill_md_path.write_text(skill_md, encoding="utf-8")
+
+        # ── 写入 compat 声明文件（供未来双向同步用） ─────────────────────────
+        compat_record = {
+            "geoclaw_skill":       name,
+            "geoclaw_version":     version,
+            "exported_at":         __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            "agentskills_version": "1.0",
+            "source_repo":         "https://github.com/whuyao/GeoClaw_Claude",
+        }
+        (dest / ".geoclaw_compat.json").write_text(
+            json.dumps(compat_record, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        return str(dest)
+
+    def export_openclaw_all(
+        self,
+        output_dir: str = ".",
+        only_compat: bool = False,
+        overwrite: bool = False,
+    ) -> List[str]:
+        """
+        批量导出所有（或声明了 agentskills_compat 的）Skill 为 OpenClaw 格式。
+
+        Args:
+            output_dir : 导出根目录
+            only_compat: True = 仅导出声明了 agentskills_compat 字段的 Skill
+            overwrite  : 覆盖已存在的目录
+
+        Returns:
+            已成功导出的目录路径列表
+        """
+        self._ensure_loaded()
+        exported = []
+        for name, entry in self._registry.items():
+            meta   = getattr(entry["module"], "SKILL_META", {})
+            compat = meta.get("agentskills_compat", {})
+            if only_compat and not compat:
+                continue
+            try:
+                dest = self.export_openclaw(name, output_dir=output_dir, overwrite=overwrite)
+                exported.append(dest)
+            except Exception as e:
+                print(f"  ⚠ 导出失败 {name}: {e}")
+        return exported

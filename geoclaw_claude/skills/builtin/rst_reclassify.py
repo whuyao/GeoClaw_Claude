@@ -21,6 +21,14 @@ SKILL_META = {
         {"name": "result", "type": "RasterLayer", "desc": "输出栅格"},
         {"name": "report", "type": "str",          "desc": "像元值统计摘要"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Raster reclassification and band math (e.g. NDVI). Map pixel values to new classes or compute multi-band expressions.',
+        "requires_bins":      ['python3', 'geoclaw-claude', 'gdal-bin'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

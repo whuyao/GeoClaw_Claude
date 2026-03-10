@@ -368,6 +368,71 @@ def main():
         _ok(f"Skill 模板已创建: {path}")
         _info("编辑该文件，实现 run() 函数，然后用 skill install 安装。")
 
+    @skill.command("export")
+    @click.argument("name", default="")
+    @click.option("--output", "-o", default=".", show_default=True,
+                  help="导出根目录（每个 Skill 在该目录下创建同名子目录）")
+    @click.option("--all", "export_all", is_flag=True, default=False,
+                  help="导出所有 Skill（忽略 NAME 参数）")
+    @click.option("--only-compat", is_flag=True, default=False,
+                  help="仅导出声明了 agentskills_compat 字段的 Skill（配合 --all 使用）")
+    @click.option("--overwrite", is_flag=True, default=False,
+                  help="目标目录已存在时强制覆盖")
+    def skill_export(name, output, export_all, only_compat, overwrite):
+        """将 Skill 导出为 OpenClaw (AgentSkills) 兼容格式（SKILL.md 文件夹）。
+
+        \b
+        单个导出：
+          geoclaw-claude skill export vec_buffer
+          geoclaw-claude skill export vec_buffer --output ./openclaw-skills/
+
+        \b
+        批量导出所有内置 Skill：
+          geoclaw-claude skill export --all --output ./openclaw-skills/
+
+        \b
+        导出后安装到 OpenClaw：
+          clawhub install <output>/<skill-name>/
+          # 或复制到 ~/.openclaw/skills/<skill-name>/
+        """
+        import os
+        from geoclaw_claude.skill_manager import SkillManager
+        sm = SkillManager()
+
+        if export_all:
+            exported = sm.export_openclaw_all(
+                output_dir=output,
+                only_compat=only_compat,
+                overwrite=overwrite,
+            )
+            if not exported:
+                _warn("没有找到可导出的 Skill。")
+                return
+            print(f"\n  已导出 {len(exported)} 个 Skill 到: {os.path.abspath(output)}\n")
+            for dest in exported:
+                skill_n = os.path.basename(dest)
+                _ok(f"  {skill_n:30s} → {dest}/SKILL.md")
+            print()
+            _info("安装到 OpenClaw：clawhub install <skill-dir>/")
+            _info("或复制到 ~/.openclaw/skills/ 目录")
+        else:
+            if not name:
+                _err("请指定 Skill 名称，或使用 --all 批量导出。")
+                _info("示例: geoclaw-claude skill export vec_buffer")
+                _info("      geoclaw-claude skill export --all")
+                return
+            try:
+                dest = sm.export_openclaw(name, output_dir=output, overwrite=overwrite)
+                _ok(f"Skill '{name}' 已导出: {dest}/SKILL.md")
+                _info(f"安装到 OpenClaw：clawhub install {dest}/")
+                _info(f"或复制到 ~/.openclaw/skills/{name}/")
+            except KeyError as e:
+                _err(str(e))
+            except FileExistsError as e:
+                _err(str(e))
+            except Exception as e:
+                _err(f"导出失败: {e}")
+
     # ── download ──────────────────────────────────────────────────────────────
     @cli.group()
     def download():

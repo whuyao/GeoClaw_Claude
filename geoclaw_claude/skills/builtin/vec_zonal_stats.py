@@ -19,6 +19,14 @@ SKILL_META = {
         {"name": "result", "type": "GeoLayer", "desc": "含统计字段的区域图层"},
         {"name": "report", "type": "str",       "desc": "各区统计摘要"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Zonal statistics: count, area, and field aggregation per polygon zone.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

@@ -72,6 +72,14 @@ SKILL_META = {
         "geoclaw-claude skill run retail_site_algo "
         "--data candidates.geojson --radius_km=2.0 --top_n=3"
     ),
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Retail site selection — pure algorithm (MCDA): multi-criteria weighted scoring for candidate locations. Reproducible, no LLM required.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

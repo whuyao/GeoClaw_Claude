@@ -20,6 +20,14 @@ SKILL_META = {
         {"name": "coverage",  "type": "GeoLayer", "desc": "覆盖缓冲区图层"},
         {"name": "report",    "type": "str",       "desc": "分析报告文本"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Hospital service coverage analysis: buffer overlay + coverage rate statistics + optional AI commentary.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

@@ -1,3 +1,15 @@
+## v3.1.3 (2026-03-10) — OpenClaw / AgentSkills 兼容导出
+
+### 新增
+- ** 字段**：所有 15 个内置 Skill 的 `SKILL_META` 新增可选兼容声明字段，包含 `enabled`、`export_description`、`requires_bins`、`requires_env`、`homepage` 五个子字段
+- **`SkillManager.export_openclaw()`**：将单个 GeoClaw Skill 导出为 OpenClaw（AgentSkills）兼容格式，生成 `SKILL.md`（YAML frontmatter + Markdown 指令）和 `.geoclaw_compat.json` 元数据文件
+- **`SkillManager.export_openclaw_all()`**：批量导出所有（或仅含 `agentskills_compat` 声明的）Skill，支持 `only_compat` 和 `overwrite` 参数
+- **CLI `skill export` 命令**：`geoclaw-claude skill export <name>` 单个导出；`--all` 批量导出；`--only-compat` 过滤；`--overwrite` 强制覆盖；`--output` 指定目录
+- **77 项专项测试**（A01-A05 字段声明、E01-E10 单个导出、B01-B04 批量导出、C01-C02 CLI）全部通过
+
+### 设计说明
+导出方向为 GeoClaw → OpenClaw（单向）。OpenClaw 读取 `SKILL.md` 后通过 `geoclaw-claude skill run` CLI 驱动 GeoClaw 执行 GIS 分析；双向运行时兼容不在计划内（两者执行哲学根本不同）。
+
 ## v3.1.2 (2026-03-10) — 扩展 Skill 生态系统 + 对话驱动 user.md 更新
 
 ### 新增 Skill（15个内置 Skill 全部就绪）

@@ -48,6 +48,14 @@ SKILL_META = {
         "geoclaw-claude skill run retail_site_ai "
         "--data candidates.geojson --ai --radius_km=2.0 --top_n=3"
     ),
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Retail site selection — AI-driven: combines spatial scoring with LLM reasoning for holistic site evaluation.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       ['ANTHROPIC_API_KEY'],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

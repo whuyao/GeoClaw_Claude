@@ -27,6 +27,14 @@ SKILL_META = {
         "grid_size":       {"type": "float", "default": 300.0,     "description": "分析网格尺寸（米）"},
         "study_area":      {"type": "str", "default": "",          "description": "研究区范围图层名（可选）"},
     },
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Urban heat island analysis: estimate UHI intensity from impervious surface, vegetation, and water coverage. Outputs a grid of UHI index values.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

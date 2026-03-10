@@ -22,6 +22,14 @@ SKILL_META = {
         {"name": "path",   "type": "GeoLayer", "desc": "最短路径线图层"},
         {"name": "report", "type": "str",       "desc": "路径距离与耗时统计"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Network shortest-path routing between origin and destination points. Returns path geometry plus distance and travel-time stats.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

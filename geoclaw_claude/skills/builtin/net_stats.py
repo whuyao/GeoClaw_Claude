@@ -17,6 +17,14 @@ SKILL_META = {
     "outputs": [
         {"name": "report", "type": "str", "desc": "路网拓扑统计报告"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Road network topology statistics: node count, edge count, average degree, total length, and connectivity metrics.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 

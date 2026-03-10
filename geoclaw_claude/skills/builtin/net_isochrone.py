@@ -21,6 +21,14 @@ SKILL_META = {
         {"name": "isochrones", "type": "GeoLayer", "desc": "等时圈多边形图层"},
         {"name": "report",     "type": "str",       "desc": "各等时圈面积统计"},
     ],
+    # ── OpenClaw / AgentSkills 兼容声明（供 skill export 命令使用）
+    "agentskills_compat": {
+        "enabled":            True,
+        "export_description": 'Isochrone (service area) analysis: compute reachable network zones within a given time or distance from facility points.',
+        "requires_bins":      ['python3', 'geoclaw-claude'],
+        "requires_env":       [],
+        "homepage":           'https://github.com/whuyao/GeoClaw_Claude',
+    },
 }
 
 
