@@ -251,27 +251,34 @@ class LLMProvider:
             return None
 
         # 构建候选列表（优先级顺序）
-        forced = getattr(cfg, "llm_provider", "") or provider
+        # 环境变量 fallback：标准 API key 环境变量名 → 对应 provider
+        import os as _os
+        forced = getattr(cfg, "llm_provider", "") or _os.environ.get("GEOCLAW_LLM_PROVIDER", "") or provider
+        env_anthropic = _os.environ.get("ANTHROPIC_API_KEY", "")
+        env_gemini    = _os.environ.get("GEMINI_API_KEY", "") or _os.environ.get("GOOGLE_API_KEY", "")
+        env_openai    = _os.environ.get("OPENAI_API_KEY", "")
+        env_qwen      = _os.environ.get("QWEN_API_KEY", "") or _os.environ.get("DASHSCOPE_API_KEY", "")
+        env_openai_model = _os.environ.get("GEOCLAW_OPENAI_MODEL", "")
         candidates = [
             ProviderConfig(
                 provider=PROVIDER_ANTHROPIC,
-                api_key=getattr(cfg, "anthropic_api_key", ""),
+                api_key=getattr(cfg, "anthropic_api_key", "") or env_anthropic,
                 model=getattr(cfg, "anthropic_model", DEFAULT_MODELS[PROVIDER_ANTHROPIC]),
             ),
             ProviderConfig(
                 provider=PROVIDER_GEMINI,
-                api_key=getattr(cfg, "gemini_api_key", ""),
+                api_key=getattr(cfg, "gemini_api_key", "") or env_gemini,
                 model=getattr(cfg, "gemini_model", DEFAULT_MODELS[PROVIDER_GEMINI]),
             ),
             ProviderConfig(
                 provider=PROVIDER_OPENAI,
-                api_key=getattr(cfg, "openai_api_key", ""),
-                model=getattr(cfg, "openai_model", DEFAULT_MODELS[PROVIDER_OPENAI]),
+                api_key=getattr(cfg, "openai_api_key", "") or env_openai,
+                model=getattr(cfg, "openai_model", env_openai_model or DEFAULT_MODELS[PROVIDER_OPENAI]),
                 base_url=getattr(cfg, "openai_base_url", ""),
             ),
             ProviderConfig(
                 provider=PROVIDER_QWEN,
-                api_key=getattr(cfg, "qwen_api_key", ""),
+                api_key=getattr(cfg, "qwen_api_key", "") or env_qwen,
                 model=getattr(cfg, "qwen_model", DEFAULT_MODELS[PROVIDER_QWEN]),
             ),
             # Ollama: local model, no API key required

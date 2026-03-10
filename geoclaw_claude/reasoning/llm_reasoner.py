@@ -227,6 +227,16 @@ def _call_llm(llm_provider: object, prompt: str) -> Optional[str]:
                 max_tokens=1200,
             )
             return response
+        # 兼容 LLMProvider.chat() 接口（标准接口）
+        elif hasattr(llm_provider, "chat"):
+            resp = llm_provider.chat(
+                messages=messages,
+                system=_SYSTEM_PROMPT,
+                max_tokens=1200,
+            )
+            if resp is None:
+                return None
+            return resp.content if hasattr(resp, "content") else str(resp)
         # 兜底：尝试直接调用
         elif callable(llm_provider):
             return llm_provider(prompt)

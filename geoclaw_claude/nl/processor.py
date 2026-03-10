@@ -142,12 +142,20 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 - 距离单位：默认 meters；"公里/km/千米" → km；"米/m" → meters
 - 如果用户没有指定图层名，从上下文猜测（如"医院" → hospitals）
 - 置信度：确定 ≥0.9，较确定 0.7~0.9，不确定 <0.7
+- **单步操作必须直接返回该 action，禁止包成 pipeline**：
+  - "做 500 米缓冲区" → action="buffer"（单步，不是 pipeline）
+  - "做 intersect 叠加分析" → action="intersect"（单步）
+  - "做 union 合并" → action="union"（单步）
+  - "按区县统计各类面积" → action="zonal_stats"（单步，zones=区县图层, points=目标图层）
+  - 只有当用户明确要求"先...再..."多步流程时，才用 pipeline
+- overlay 操作映射：intersect/相交 → action="intersect"；union/合并 → action="union"；clip/裁剪 → action="clip"
+- zonal_stats 用于"按区域统计"、"分区统计"、"各区/各县统计"等场景，不要映射到 react
 - tool_run 示例: "查找 ~/data 下所有 geojson 文件" → action="tool_run", params={"tool":"file_find","pattern":"*.geojson","root":"~/data"}
-- tool_run 示例: "执行 ls ~/geoclaw_output" → action="tool_run", params={"tool":"shell","cmd":"ls ~/geoclaw_output"}
-- react 示例: "帮我分析 output 目录里的数据文件，统计各类型数量" → action="react", params={"task":"..."}
-- **重要**：对于非 GIS 操作的输入（问候、闲聊、感谢、提问等），使用 action="chat"，
+- react 仅用于需要多工具协作的复杂任务（如文件系统探索、代码执行），普通 GIS 操作不要用 react
+- **重要**：对于非 GIS 操作的输入（问候、闲聊、感谢、提问、GIS 建议、工具推荐等），使用 action="chat"，
   在 params.reply 中用中文直接回复，不要返回 unknown。
   例如 "你好" → {"action":"chat","params":{"reply":"你好！我是 GeoClaw，有什么 GIS 分析需要帮忙？"},"targets":[],"confidence":1.0,"explanation":"问候"}
+  例如 "应该用哪种 Skill？" → {"action":"chat","params":{"reply":"根据你的分析需求，建议使用..."},"targets":[],"confidence":0.9,"explanation":"工具建议"}
 - 只有真正无法理解的输入才返回 action="unknown"
 """
 
@@ -197,8 +205,9 @@ class NLProcessor:
                 LLMProvider, ProviderConfig, DEFAULT_MODELS
             )
             if api_key:
-                _pname = provider or "anthropic"
-                _model = model or DEFAULT_MODELS.get(_pname, "")
+                import os as _os
+                _pname = provider or _os.environ.get("GEOCLAW_LLM_PROVIDER", "") or "anthropic"
+                _model = model or _os.environ.get("GEOCLAW_OPENAI_MODEL", "") or DEFAULT_MODELS.get(_pname, "")
                 cfg = ProviderConfig(provider=_pname, api_key=api_key, model=_model)
                 self._llm = LLMProvider(cfg, verbose=verbose)
             else:

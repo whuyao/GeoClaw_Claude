@@ -168,7 +168,7 @@ def reason(
 
 def reason_with_llm(
     query: str,
-    llm_provider: object,
+    llm_provider: object = None,
     datasets: list | None = None,
     user_context: dict | None = None,
     project_context: dict | None = None,
@@ -181,11 +181,12 @@ def reason_with_llm(
     在 reason() 的基础上额外调用 LLM Geo Reasoner，将语义理解结果
     融合到 workflow_plan 和 reasoning_summary 中。
 
+    若 llm_provider 为 None，自动从环境变量/配置文件创建。
     若 llm_provider 调用失败，自动降级为 rule-only 模式。
 
     Args:
         query           : 用户自然语言查询
-        llm_provider    : LLMProvider 实例
+        llm_provider    : LLMProvider 实例（None=自动创建）
         datasets        : 数据集元信息列表
         user_context    : 用户偏好上下文
         project_context : 项目级上下文
@@ -195,6 +196,13 @@ def reason_with_llm(
     Returns:
         SpatialReasoningResult（含 LLM 推理增强）
     """
+    # 自动创建 llm_provider
+    if llm_provider is None:
+        try:
+            from geoclaw_claude.nl.llm_provider import LLMProvider
+            llm_provider = LLMProvider.from_config()
+        except Exception:
+            llm_provider = None
     from geoclaw_claude.reasoning.input_adapter import build_reasoning_input
     from geoclaw_claude.reasoning.context_builder import build_reasoning_context
     from geoclaw_claude.reasoning.task_typer import classify_task
