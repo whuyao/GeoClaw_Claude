@@ -74,22 +74,22 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 |--------|------|---------|
 | load | 加载矢量数据文件 | path(文件路径), name(图层名) |
 | save | 保存图层到文件 | path, layer |
-| buffer | 缓冲区分析 | distance(距离数值), unit(meters/km, 默认meters), layer |
-| clip | 裁剪 | layer(被裁剪图层), mask(裁剪边界图层) |
-| intersect | 相交分析 | layer_a, layer_b |
-| union | 合并分析 | layer_a, layer_b |
-| nearest_neighbor | 最近邻分析 | source(源图层), target(目标图层) |
-| spatial_join | 空间连接 | source, target, how(left/inner), predicate(intersects/within) |
-| kde | 核密度分析 | layer, bandwidth(默认0.05), grid_size(默认100) |
-| zonal_stats | 分区统计 | zones(区域图层), points(点图层), stat(count/sum/mean) |
+| buffer | 缓冲区分析 | distance(距离数值), unit(meters/km, 默认meters), layer, output_name(可选,结果图层名) |
+| clip | 裁剪 | layer(被裁剪图层), mask(裁剪边界图层), output_name(可选) |
+| intersect | 相交分析 | layer_a, layer_b, output_name(可选) |
+| union | 合并分析 | layer_a, layer_b, output_name(可选) |
+| nearest_neighbor | 最近邻分析 | source(源图层), target(目标图层), output_name(可选) |
+| spatial_join | 空间连接 | source, target, how(left/inner), predicate(intersects/within), output_name(可选) |
+| kde | 核密度分析 | layer, bandwidth(默认0.05), grid_size(默认100), output_name(可选) |
+| zonal_stats | 分区统计 | zones(区域图层), points(点图层), stat(count/sum/mean), output_name(可选) |
 | calculate_area | 面积计算 | layer, unit(m2/km2/ha) |
 | network_build | 构建路网 | bbox或layer, network_type(drive/walk/bike) |
-| isochrone | 等时圈 | center(经纬度), minutes(时间列表), network_type |
-| shortest_path | 最短路径 | origin(经纬度), destination(经纬度) |
+| isochrone | 等时圈 | center(经纬度，格式"lon,lat"如"114.30,30.60"；若用户写"经度X，纬度Y"则center="X,Y"；或拆分为lon和lat字段), minutes(时间列表), network_type, output_name(可选), graph_file(可选,用户指定本地路网graphml文件路径时填入) |
+| shortest_path | 最短路径 | origin(起点"lon,lat"), destination(终点"lon,lat"), network_type(drive/walk/bike), output_name(可选), graph_file(可选,用户指定本地路网graphml文件路径时填入) |
 | coord_transform | 坐标转换 | layer, from_crs(wgs84/gcj02/bd09), to_crs |
 | render | 制图/可视化 | layers(图层列表), title, style(default/dark/satellite) |
 | render_interactive | 交互地图 | layers, title |
-| download_osm | 下载OSM数据 | place(地名), type(hospital/school/park/...) |
+| download_osm | 下载OSM数据 | place(地名), type(hospital/school/park/...), output_name(可选,结果图层名) |
 | check_update | 检测更新 | (无参数) |
 | memory_status | 查看记忆状态 | (无参数) |
 | memory_search | 搜索记忆 | query(关键词) |
@@ -153,11 +153,18 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
 - overlay 操作映射：intersect/相交 → action="intersect"；union/合并 → action="union"；clip/裁剪 → action="clip"
 - zonal_stats 用于"按区域统计"、"分区统计"、"各区/各县统计"等场景，不要映射到 react
 - tool_run 示例: "查找 ~/data 下所有 geojson 文件" → action="tool_run", params={"tool":"file_find","pattern":"*.geojson","root":"~/data"}
+- isochrone 示例: "以某点（经度114.3664，纬度30.5340）为中心，步行5和10分钟等时圈" → action="isochrone", params={"center":"114.3664,30.5340","minutes":[5,10],"network_type":"walk"}
+- isochrone 示例: "以(114.30, 30.60)为中心，10分钟等时圈" → action="isochrone", params={"center":"114.30,30.60","minutes":[10],"network_type":"walk"}
+- isochrone + graph_file 示例: "以（114.3665, 30.5403）为中心，用本地路网文件 /tmp/x.graphml，计算步行5和10分钟等时圈" → action="isochrone", params={"center":"114.3665,30.5403","minutes":[5,10],"network_type":"walk","graph_file":"/tmp/x.graphml"}
+- shortest_path + graph_file 示例: "从（114.36,30.54）到（114.37,30.53），用本地路网 /tmp/x.graphml 计算步行路径" → action="shortest_path", params={"origin":"114.36,30.54","destination":"114.37,30.53","network_type":"walk","graph_file":"/tmp/x.graphml"}
+- **关键**: 含"等时圈"/"最短路径"的请求即使同时提到地名，也必须识别为 isochrone/shortest_path，绝对不是 download_osm
 - skill_run 示例: "运行 hospital_coverage Skill，radius_km=1.0" → action="skill_run", params={"name":"hospital_coverage","radius_km":"1.0"}
 - skill_run 示例: "运行 vec_kde Skill 对医院数据做核密度 bandwidth=0.05" → action="skill_run", params={"name":"vec_kde","bandwidth":"0.05"}
 - **反例（绝对不用 skill_run）**: "对医院做核密度分析 bandwidth=800" → action="kde", params={"bandwidth":800}（没有提到 Skill 名称）
 - **反例（绝对不用 skill_run）**: "计算 10 分钟等时圈" → action="isochrone"（没有提到 Skill 名称）
 - **区分规则**: skill_run 仅用于用户明确指定了 Skill 名称（如 hospital_coverage/vec_kde/net_isochrone）的场景；否则统一用直接 GIS action
+- **路网操作识别规则**: 当用户提到"等时圈"/"isochrone"/"分钟内可达"→ action="isochrone"；提到"最短路径"/"路径规划"→ action="shortest_path"；若同时提到 graph_file 或本地路网文件路径，把路径填入 graph_file 参数，**不要**识别为 download_osm
+- **download_osm 识别规则**: 只有当用户明确要求"下载...数据"/"获取...POI"/"从OSM获取"时才用 download_osm；"计算等时圈"/"计算路径"等路网分析操作绝对不能识别为 download_osm
 - **重要**: "运行 X Skill"/"执行 X Skill"/"用 X Skill 做" 这类**明确提到 Skill 名称**的指令，才用 action="skill_run"
 - **重要**: "做核密度分析"/"缓冲区"/"等时圈"/"下载OSM" 等直接描述 GIS 操作的指令，**不要**用 skill_run，要用对应的 GIS action（kde/buffer/isochrone/download_osm 等）
 - react 仅用于需要多工具协作的复杂任务（如文件系统探索、代码执行），普通 GIS 操作不要用 react
@@ -165,6 +172,10 @@ _SYSTEM_PROMPT = """你是 GeoClaw-claude 的自然语言 GIS 指令解析器。
   触发词：「有哪些图层」「查看图层」「当前图层」「图层列表」「列出图层」
   示例：「现在有哪些图层？」→ {"action":"status","params":{},"targets":[],"confidence":0.95,"explanation":"查询图层"}
 - **重要**：对于非 GIS 操作的输入（问候、闲聊、感谢、提问、GIS 建议、工具推荐等），使用 action="chat"，
+  包含**比较/疑问/建议**性问题，如"XX和YY有什么区别"、"哪种更适合"、"哪种更准确"、"什么时候用XX"等，即使句中出现了 GIS 术语（如"缓冲区"、"等时圈"），也应识别为 chat，**而不是 GIS 操作**。
+  - 反例（必须用 chat）: \"等时圈和缓冲区有什么区别？\" → action=\"chat\"（这是提问，不是执行缓冲区操作）
+  - 反例（必须用 chat）: \"哪种分析更适合可达性研究？\" → action=\"chat\"（这是咨询建议）
+  - 反例（必须用 chat）: \"缓冲区分析和等时圈哪种更准确？\" → action=\"chat\"（含"哪种"的比较提问）
   在 params.reply 中用中文直接回复，不要返回 unknown。
   例如 "你好" → {"action":"chat","params":{"reply":"你好！我是 GeoClaw，由中国地质大学（武汉）UrbanComp Lab 开发的开源智能地理空间分析框架。有什么 GIS 分析需要帮忙？"},"targets":[],"confidence":1.0,"explanation":"问候"}
   例如 "应该用哪种 Skill？" → {"action":"chat","params":{"reply":"根据你的分析需求，建议使用..."},"targets":[],"confidence":0.9,"explanation":"工具建议"}
@@ -288,6 +299,29 @@ class NLProcessor:
             _kde_kw    = ["核密度", "kde", "密度热力", "密度分析"]
             _iso_kw    = ["等时圈", "isochrone", "分钟内可达", "分钟步行圈"]
             _skill_kw  = ["skill", "技能"]
+            # 比较/疑问类问题：直接识别为 chat，不走 GIS 解析
+            _compare_kw = ["有什么区别", "有何区别", "哪种更", "哪个更", "哪种适合",
+                           "哪个适合", "什么区别", "什么不同", "有什么不同",
+                           "优缺点", "什么时候用", "如何选择", "怎么选", "建议用哪"]
+            if any(k in text for k in _compare_kw):
+                # 比较性问题直接交给 LLM 生成 chat 回复
+                if self._llm is not None:
+                    try:
+                        resp = self._llm.chat(
+                            messages=[{"role": "user", "content": text}],
+                            system="你是 GeoClaw-claude，一个 GIS 智能分析助手。请用专业但简洁的中文回答用户关于 GIS 方法的问题。"
+                        )
+                        reply = resp.content if resp else "这是个很好的问题！"
+                        return ParsedIntent(action="chat", params={"reply": reply},
+                                           targets=[], confidence=1.0,
+                                           explanation="GIS方法比较问答",
+                                           raw_text=text)
+                    except Exception:
+                        pass
+                return ParsedIntent(action="chat",
+                                   params={"reply": "这是个很好的分析方法比较问题，建议根据具体需求选择合适的工具。"},
+                                   targets=[], confidence=1.0,
+                                   explanation="GIS方法比较问答", raw_text=text)
             _has_skill = any(k in t_lower for k in _skill_kw)
             if not _has_skill:
                 if any(k in text for k in _kde_kw):

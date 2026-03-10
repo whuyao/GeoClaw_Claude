@@ -330,7 +330,7 @@ class SkillManager:
     def run(
         self,
         name: str,
-        data:       str = "",
+        data       = "",
         output:     str = "",
         use_ai:     bool = False,
         extra_args: Optional[List[str]] = None,
@@ -340,7 +340,7 @@ class SkillManager:
 
         Args:
             name      : skill 名称
-            data      : 输入数据文件路径
+            data      : 输入数据文件路径，或直接传入 SkillContext 对象
             output    : 输出目录路径
             use_ai    : 是否启用 AI 分析
             extra_args: 额外参数列表 (如 ["--radius_km=5"])
@@ -360,12 +360,16 @@ class SkillManager:
         if not hasattr(mod, "run"):
             raise AttributeError(f"Skill '{name}' 缺少 run(ctx) 函数")
 
-        ctx = SkillContext(
-            data_path=data,
-            output_path=output or self._cfg.output_dir,
-            use_ai=use_ai,
-            extra_args=extra_args,
-        )
+        # 直接传入 SkillContext 对象时，跳过创建步骤
+        if isinstance(data, SkillContext):
+            ctx = data
+        else:
+            ctx = SkillContext(
+                data_path=data,
+                output_path=output or self._cfg.output_dir,
+                use_ai=use_ai,
+                extra_args=extra_args,
+            )
 
         print(f"\n  ▶ 执行 skill: {name} v{entry['version']}")
         print(f"    {entry['description']}\n")

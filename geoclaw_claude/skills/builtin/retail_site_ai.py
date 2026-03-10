@@ -87,6 +87,17 @@ def run(ctx):
     radius_km  = float(ctx.param("radius_km", 1.5))
     top_n      = int(ctx.param("top_n", 3))
 
+    # 若输入是多边形/线，自动转为质心点
+    geom_types = candidates.data.geometry.geom_type.unique().tolist()
+    has_poly = any(gt in geom_types for gt in ["Polygon", "MultiPolygon", "LineString", "MultiLineString"])
+    if has_poly:
+        from geoclaw_claude.core.layer import GeoLayer
+        import geopandas as gpd
+        pts = candidates.data.copy()
+        pts["geometry"] = pts.geometry.centroid
+        candidates = GeoLayer(data=pts, name=getattr(candidates, "name", "candidates"))
+        print(f"  ⚠ 输入为多边形图层，已转为质心点")
+
     print(f"\n  📍 候选选址点: {len(candidates)} 个")
     print(f"  📐 商圈半径:   {radius_km} km")
 

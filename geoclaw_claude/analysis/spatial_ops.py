@@ -478,3 +478,25 @@ def kde(
         "xx":     xx,
         "yy":     yy,
     }
+
+
+def dissolve(layer: "GeoLayer", by: str = None) -> "GeoLayer":
+    """
+    融合图层中的几何要素（合并重叠/相邻要素）。
+
+    Args:
+        layer : 输入 GeoLayer
+        by    : 按字段分组（None 则全部融合为单个几何）
+
+    Returns:
+        融合后的 GeoLayer
+    """
+    import geopandas as gpd
+    from geoclaw_claude.core.layer import GeoLayer
+
+    gdf = layer.data.copy()
+    if by and by in gdf.columns:
+        dissolved = gdf.dissolve(by=by).reset_index()
+    else:
+        dissolved = gdf.dissolve().reset_index(drop=True)
+    return GeoLayer(data=dissolved, name=f"{layer.name}_dissolved" if hasattr(layer, 'name') else "dissolved")

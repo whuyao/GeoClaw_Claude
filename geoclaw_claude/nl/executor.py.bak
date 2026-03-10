@@ -137,20 +137,18 @@ class NLExecutor:
     # ── 图层管理 ──────────────────────────────────────────────────────────────
 
     def add_layer(self, name: str, layer: Any) -> None:
-        if layer is None:
-            return   # 不存储 None 图层，避免后续查找误判
         self._layers[name] = layer
         if self._mem:
             self._mem.remember(f"layer_{name}", layer, category="result",
                                tags=["layer", name])
 
     def get_layer(self, name: str) -> Any:
-        # 先查名称完整匹配（跳过 None 值）
-        if name in self._layers and self._layers[name] is not None:
+        # 先查名称完整匹配
+        if name in self._layers:
             return self._layers[name]
-        # 模糊匹配（前缀，跳过 None 值）
+        # 模糊匹配（前缀）
         for k, v in self._layers.items():
-            if v is not None and (k.startswith(name) or name.startswith(k)):
+            if k.startswith(name) or name.startswith(k):
                 return v
         # 从 Memory 恢复
         if self._mem:
@@ -182,9 +180,6 @@ class NLExecutor:
             return self._execute_pipeline(intent)
 
         t0 = time.time()
-        # 把原始用户文本注入 params，供各 _do_* 方法兜底解析坐标等
-        if intent.raw_text and "_raw_text" not in intent.params:
-            intent.params["_raw_text"] = intent.raw_text
         try:
             result = self._dispatch(intent)
             dur = time.time() - t0
@@ -239,15 +234,11 @@ class NLExecutor:
 
         ok  = sum(1 for r in results if r.success)
         msg = f"流水线完成 {ok}/{len(pipeline.steps)} 步"
-        # 收集失败步骤的错误信息
-        failed = [r for r in results if not r.success]
-        err_msg = failed[0].error if failed else None
         er  = ExecutionResult(
             success=last_ok,
             action="pipeline",
             result=[r.result for r in results],
             message=msg,
-            error=err_msg,
             duration=sum(r.duration for r in results),
         )
         self._history.append(er)
@@ -444,7 +435,7 @@ class NLExecutor:
         distance = float(p.get("distance", 1000))
         unit     = p.get("unit", "meters")
         result   = buffer(layer, distance, unit=unit)
-        out_name = p.get("output_name") or p.get("result_name") or f"{lname or 'layer'}_buf{int(distance)}"
+        out_name = f"{lname or 'layer'}_buf{int(distance)}"
         self.add_layer(out_name, result)
         return result
 
@@ -536,164 +527,30 @@ class NLExecutor:
         center  = p.get("center")
         minutes = p.get("minutes", [5, 10, 15])
         ntype   = p.get("network_type", "drive")
-        # 兜底1：如果 center 为 None，尝试从 lon/lat 字段组合
-        if center is None:
-            lon_v = p.get("lon") or p.get("longitude") or p.get("x")
-            lat_v = p.get("lat") or p.get("latitude") or p.get("y")
-            if lon_v is not None and lat_v is not None:
-                center = (float(lon_v), float(lat_v))
-        # 兜底2：从原始用户文本正则提取坐标（应对LLM解析失败）
-        if center is None:
-            pass  # 将在 _raw_text 注入后处理
-        if center is None:
-            raw = p.get("_raw_text", "")
-            if raw:
-                import re as _re
-                # 匹配 "经度X，纬度Y" 或 "(X, Y)" 或 "X,Y"
-                m = _re.search(r"经度\s*([\d.]+)[，,]\s*纬度\s*([\d.]+)", raw)
-                if m:
-                    center = (float(m.group(1)), float(m.group(2)))
-                if center is None:
-                    m = _re.search(r"\(([\d.]+)[,，\s]+([\d.]+)\)", raw)
-                    if m:
-                        a, b = float(m.group(1)), float(m.group(2))
-                        center = (a, b) if a > b else (b, a)
         if center is None:
             raise ValueError("请提供等时圈中心坐标，例如：(114.30, 30.60)")
-        # 支持字符串坐标 "lon,lat" 或地名
-        if isinstance(center, str):
-            # 先尝试解析为数字坐标
-            try:
-                center = self._parse_coord(center)
-            except ValueError:
-                # 如果不是数字坐标，尝试 geocode 地名
-                try:
-                    import osmnx as ox
-                    gdf = ox.geocode_to_gdf(center)
-                    lon_c = float(gdf.geometry.centroid.x.iloc[0])
-                    lat_c = float(gdf.geometry.centroid.y.iloc[0])
-                    center = (lon_c, lat_c)
-                    print(f"  ↳ 地名 '{center}' geocode: ({lon_c:.4f}, {lat_c:.4f})")
-                except Exception:
-                    raise ValueError(f"无法解析等时圈中心 '{center}'，请使用 'lon,lat' 坐标格式")
-        elif isinstance(center, dict):
-            center = (float(center.get("lon", center.get("longitude", 0))),
-                      float(center.get("lat", center.get("latitude", 0))))
         lon, lat = center if isinstance(center, (list, tuple)) else (center[0], center[1])
-        # 动态计算 bbox：步行~5km/h，驾车~50km/h，给 2× 余量
-        max_min = max(minutes) if isinstance(minutes, list) else minutes
-        speed_km_per_min = {"walk": 5/60, "drive": 50/60, "bike": 15/60}.get(ntype, 5/60)
-        radius_deg = (max_min * speed_km_per_min / 111) * 2.5  # 2.5× 余量
-        radius_deg = max(0.03, min(radius_deg, 0.15))  # 限制在 0.03~0.15°
-        bbox = (lon - radius_deg, lat - radius_deg, lon + radius_deg, lat + radius_deg)
-        print(f"  等时圈 bbox: ±{radius_deg:.3f}° (max={max_min}min, {ntype})")
-        # 支持传入本地路网文件（graph_file 参数），绕过在线下载
-        graph_file = p.get("graph_file")
-        try:
-            if graph_file:
-                import osmnx as ox
-                G = ox.load_graphml(graph_file)
-                print(f"  ↳ 使用本地路网: {graph_file}")
-            else:
-                G = build_network(bbox, network_type=ntype)
-        except Exception as net_err:
-            err_str = str(net_err).lower()
-            if any(k in err_str for k in ("timeout", "timed out", "connection", "overpass", "network")):
-                raise RuntimeError(
-                    f"路网下载超时或网络不可达，无法获取 OSM 步行路网。\n"
-                    f"建议：① 检查网络连接；② 稍后重试。\n原始错误: {net_err}"
-                ) from net_err
-            raise
+        bbox    = (lon - 0.1, lat - 0.1, lon + 0.1, lat + 0.1)
+        G       = build_network(bbox, network_type=ntype)
         result  = isochrone(G, center=(lon, lat), minutes=minutes)
-        out_name = p.get("output_name") or p.get("name") or "isochrone"
-        self.add_layer(out_name, result)
+        self.add_layer("isochrone", result)
         return result
-
-    @staticmethod
-    def _parse_coord(val) -> tuple:
-        """将字符串/列表/元组解析为 (lon, lat) float tuple。"""
-        if isinstance(val, (list, tuple)) and len(val) >= 2:
-            return (float(val[0]), float(val[1]))
-        if isinstance(val, str):
-            parts = [x.strip() for x in val.replace(";", ",").split(",")]
-            if len(parts) >= 2:
-                try:
-                    a, b = float(parts[0]), float(parts[1])
-                    # 自动判断 lat,lon vs lon,lat（中国经度 > 纬度）
-                    if a < 90 and b > 90:   # a=lat, b=lon
-                        return (b, a)
-                    return (a, b)           # 否则原样返回
-                except ValueError:
-                    pass
-        raise ValueError(f"无法解析坐标值: {val!r}，请使用 'lon,lat' 格式")
 
     def _do_shortest_path(self, p: dict, t: list) -> Any:
         from geoclaw_claude.analysis.network import build_network, shortest_path
         origin      = p.get("origin")
         destination = p.get("destination")
         ntype       = p.get("network_type", "drive")
-        # 兜底：origin/destination 可能以 origin_lon/origin_lat 形式传入
-        if origin is None:
-            olon = p.get("origin_lon") or p.get("from_lon") or p.get("start_lon")
-            olat = p.get("origin_lat") or p.get("from_lat") or p.get("start_lat")
-            if olon and olat:
-                origin = f"{olon},{olat}"
-        if destination is None:
-            dlon = p.get("destination_lon") or p.get("to_lon") or p.get("end_lon")
-            dlat = p.get("destination_lat") or p.get("to_lat") or p.get("end_lat")
-            if dlon and dlat:
-                destination = f"{dlon},{dlat}"
         if not origin or not destination:
             raise ValueError("请提供起点和终点坐标")
-
-        def _to_coord(val, label):
-            """支持 'lon,lat' 字符串或地名→坐标。"""
-            try:
-                return self._parse_coord(val)
-            except ValueError:
-                # 尝试 geocode 地名
-                if isinstance(val, str):
-                    try:
-                        import osmnx as ox
-                        gdf = ox.geocode_to_gdf(val)
-                        lon_c = float(gdf.geometry.centroid.x.iloc[0])
-                        lat_c = float(gdf.geometry.centroid.y.iloc[0])
-                        print(f"  ↳ {label} '{val}' geocode: ({lon_c:.4f}, {lat_c:.4f})")
-                        return (lon_c, lat_c)
-                    except Exception:
-                        pass
-                raise ValueError(f"无法解析{label}坐标: {val!r}")
-
-        origin      = _to_coord(origin, "起点")
-        destination = _to_coord(destination, "终点")
         all_coords = list(origin) + list(destination)
-        # padding：两点距离的 50% 或最少 0.02°（约 2km），最多 0.08°
-        span = max(abs(all_coords[0]-all_coords[2]), abs(all_coords[1]-all_coords[3]))
-        pad = max(0.02, min(span * 0.5, 0.08))
-        bbox = (min(all_coords[0], all_coords[2]) - pad,
-                min(all_coords[1], all_coords[3]) - pad,
-                max(all_coords[0], all_coords[2]) + pad,
-                max(all_coords[1], all_coords[3]) + pad)
-        print(f"  ↓ 下载路网: bbox [{bbox[0]:.3f},{bbox[1]:.3f},{bbox[2]:.3f},{bbox[3]:.3f}] ({ntype})")
-        graph_file = p.get("graph_file")
-        try:
-            if graph_file:
-                import osmnx as ox
-                G = ox.load_graphml(graph_file)
-                print(f"  ↳ 使用本地路网: {graph_file}")
-            else:
-                G = build_network(bbox, network_type=ntype)
-        except Exception as net_err:
-            err_str = str(net_err).lower()
-            if any(k in err_str for k in ("timeout", "timed out", "connection", "overpass", "network")):
-                raise RuntimeError(
-                    f"路网下载超时或网络不可达。\n"
-                    f"建议：① 检查网络连接；② 稍后重试。\n原始错误: {net_err}"
-                ) from net_err
-            raise
+        bbox = (min(all_coords[0], all_coords[2]) - 0.05,
+                min(all_coords[1], all_coords[3]) - 0.05,
+                max(all_coords[0], all_coords[2]) + 0.05,
+                max(all_coords[1], all_coords[3]) + 0.05)
+        G      = build_network(bbox, network_type=ntype)
         result = shortest_path(G, origin=origin, destination=destination)
-        out_name = p.get("output_name") or p.get("name") or "shortest_path"
-        self.add_layer(out_name, result)
+        self.add_layer("shortest_path", result)
         return result
 
     def _do_network_build(self, p: dict, t: list) -> Any:
@@ -806,16 +663,13 @@ class NLExecutor:
 
     def _do_download_osm(self, p: dict, t: list) -> Any:
         from geoclaw_claude.io.osm import download_pois, download_boundary
-        import re
         place    = p.get("place", "")
         poi_type = p.get("type", "poi")
         if not place:
             raise ValueError("请指定地名，例如：下载武汉市医院数据")
         boundary = download_boundary(place)
         layer    = download_pois(boundary.bounds, poi_type=poi_type)
-        # 清洗 place 名，去掉逗号/空格等特殊字符，确保图层名可被 LLM 引用
-        safe_place = re.sub(r"[,，\s]+", "_", place).strip("_")
-        name = p.get("output_name") or p.get("name") or f"{safe_place}_{poi_type}"
+        name     = f"{place}_{poi_type}"
         self.add_layer(name, layer)
         return layer
 
@@ -989,15 +843,9 @@ class NLExecutor:
                 n = len(result) if hasattr(result, "__len__") else "?"
                 return f"等时圈生成完成，{n} 个等时区"
             if a == "download_osm":
-                if result is None or (hasattr(result, "__len__") and len(result) == 0):
-                    return "OSM 数据下载完成，但未找到匹配的 POI（该区域可能无此类数据）"
                 n = len(result) if hasattr(result, "__len__") else "?"
                 return f"OSM 数据下载完成，{n} 个 POI"
             if a in ("render", "render_interactive"):
-                if isinstance(result, dict):
-                    path = result.get("path", "")
-                    rtype = result.get("type", "")
-                    return f"地图生成完成\n  type: {rtype}\n  path: {path}"
                 return "地图生成完成"
             if a == "check_update":
                 return result.get("summary", "版本检测完成") if isinstance(result, dict) else str(result)

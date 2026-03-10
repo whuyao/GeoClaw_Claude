@@ -71,9 +71,63 @@ def build_network(
 
     ox.settings.use_cache = True
     ox.settings.log_console = False
+    ox.settings.timeout = 15  # 最多等待15秒（测试环境），生产建议60秒
+    ox.settings.max_query_area_size = 50_000_000_000  # 放宽面积限制
 
+    # === Hard timeout wrapper ===
+    import concurrent.futures as _cf, functools as _ft
+
+    def _do_download():
+        nonlocal G
+        if isinstance(source, str):
+            print(f"  ↓ 下载路网: {source} ({network_type})")
+            return ox.graph_from_place(source, network_type=network_type,
+                                       retain_all=retain_all, custom_filter=custom_filter)
+        elif isinstance(source, tuple) and len(source) == 4:
+            west, south, east, north = source
+            print(f"  ↓ 下载路网: bbox [{west:.3f},{south:.3f},{east:.3f},{north:.3f}] ({network_type})")
+            return ox.graph_from_bbox(bbox=(north, south, east, west),
+                                      network_type=network_type, retain_all=retain_all,
+                                      custom_filter=custom_filter)
+        elif isinstance(source, GeoLayer):
+            bounds = source.data.total_bounds
+            west2, south2, east2, north2 = bounds
+            pad = 0.01
+            print(f"  ↓ 下载路网: 图层范围 ({network_type})")
+            return ox.graph_from_bbox(bbox=(north2+pad, south2-pad, east2+pad, west2-pad),
+                                      network_type=network_type, retain_all=retain_all)
+        else:
+            raise ValueError("source 须为: 地名字符串 / (west,south,east,north)元组 / GeoLayer")
+
+    _timeout_sec = 25
+    import signal as _sig
+
+    def _timeout_handler(signum, frame):
+        raise RuntimeError(
+            f"路网下载超时（>{_timeout_sec}秒），Overpass API 响应过慢或网络不通。\n"
+            "建议：① 检查网络连接；② 稍后重试；③ 如需离线分析，"
+            "可先下载路网文件（graph_from_bbox 后 save_graphml）再使用 graph_file 参数。"
+        )
+
+    # signal 只在主线程中有效
+    _is_main_thread = (_sig.getsignal(_sig.SIGALRM) is not None
+                       if hasattr(_sig, 'SIGALRM') else False)
+    try:
+        if hasattr(_sig, 'SIGALRM'):
+            _old_handler = _sig.signal(_sig.SIGALRM, _timeout_handler)
+            _sig.alarm(_timeout_sec)
+        G = _do_download()
+        if hasattr(_sig, 'SIGALRM'):
+            _sig.alarm(0)
+            _sig.signal(_sig.SIGALRM, _old_handler)
+    except RuntimeError:
+        if hasattr(_sig, 'SIGALRM'):
+            _sig.alarm(0)
+        raise
+
+    if False:  # 以下原始分支已被上面的 _do_download 替代，保留注释供参考
+        pass
     if isinstance(source, str):
-        print(f"  ↓ 下载路网: {source} ({network_type})")
         G = ox.graph_from_place(
             source,
             network_type=network_type,

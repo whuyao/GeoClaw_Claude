@@ -262,9 +262,28 @@ class GeoAgent:
                 except Exception:
                     pass
             elif isinstance(result, dict):
-                for k, v in list(result.items())[:4]:
-                    if not callable(v):
-                        lines.append(f"  {k}: {v}")
+                # render 结果已在 message 中显示，跳过
+                if intent.action in ("render", "render_interactive"):
+                    pass
+                # KDE / 栅格结果特殊处理：只显示摘要，不输出原始矩阵
+                elif "grid" in result and "extent" in result:
+                    import numpy as np
+                    grid = result["grid"]
+                    ext = result["extent"]
+                    gs = grid.shape[0] if hasattr(grid, "shape") else "?"
+                    vmax = float(np.max(grid)) if hasattr(grid, "max") else "?"
+                    lines.append(f"  网格: {gs}×{gs}  密度峰值: {vmax:.6f}")
+                    lines.append(f"  范围: ({ext[0]:.4f}, {ext[1]:.4f}) ~ ({ext[2]:.4f}, {ext[3]:.4f})")
+                else:
+                    import numpy as np
+                    for k, v in list(result.items())[:4]:
+                        if callable(v):
+                            continue
+                        # 跳过大型数组
+                        if hasattr(v, "__len__") and not isinstance(v, str) and len(v) > 20:
+                            lines.append(f"  {k}: [{type(v).__name__}, {len(v)} items]")
+                        else:
+                            lines.append(f"  {k}: {v}")
         # 提示当前可用图层
         available = self._exec.list_layers()
         if available:
