@@ -9,7 +9,7 @@
 
 set -e
 
-VERSION="0.2.0"
+VERSION="3.2.0"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 颜色输出 ──────────────────────────────────────────────

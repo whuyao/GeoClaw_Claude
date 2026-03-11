@@ -12,7 +12,7 @@
 > **UrbanComp Lab** 出品的自然语言驱动城市地理信息分析平台
 > https://urbancomp.net
 
-[![Version](https://img.shields.io/badge/version-3.1.4-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.2.0-blue)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-577%2F577-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.9+-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
@@ -28,6 +28,7 @@
 ## 目录
 
 - [快速开始](#快速开始)
+- [v3.2.0 新特性：Web 对话界面](#v320-新特性web-对话界面)
 - [v3.1.4 新特性：活人感对话记忆系统](#v314-新特性活人感对话记忆系统)
 - [v3.1.3 新特性：OpenClaw 兼容导出](#openclaw--agentskills-兼容导出)
 - [v3.1.2 新特性：15 个内置 Skill + Profile 增强](#v312-新特性)
@@ -87,6 +88,41 @@ geoclaw-claude skill export --all --output ./openclaw_skills/
 # 搜索历史记忆
 geoclaw-claude memory vsearch "武汉医院空间分析"
 ```
+
+---
+
+## v3.2.0 新特性：Web 对话界面
+
+v3.2.0 新增了基于浏览器的 **Web Chat UI**，让任何人都可以无需终端直接与 GeoClaw 对话。
+
+### 设计亮点
+
+深色地图科技感主题：坐标格背景（暗示 GIS 空间坐标系）、水绿色强调色 `#1de9b6`、Noto Serif SC + JetBrains Mono 字体组合，界面不像普通工具软件，更像一张会说话的地图。
+
+### 启动
+
+```bash
+pip install flask flask-cors
+python web/server.py            # → http://localhost:7860
+python web/server.py --rule     # 离线模式，无需 API Key
+```
+
+### 界面功能
+
+| 区域 | 功能 |
+|------|------|
+| 侧边栏 | 实时状态（AI 引擎 / Provider / 会话 ID / 图层数）、示例指令快捷填充、版权信息 |
+| 对话区 | 多轮对话、动态气泡动效、打字指示符、代码块高亮、耗时显示 |
+| 顶栏 | 会话徽章、图层浮动面板、一键新建会话 |
+
+### API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/chat` | POST | 发送消息，返回回复 + 耗时 + Provider |
+| `/api/status` | GET | 会话 ID、图层列表、AI 模式 |
+| `/api/reset` | POST | 重置会话（保留用户数据）|
+| `/api/layers` | GET | 当前已加载 GeoLayer 列表 |
 
 ---
 
@@ -557,7 +593,8 @@ GeoClaw_Claude/
 
 | 版本 | 时间 | 亮点 |
 |------|------|------|
-| **v3.1.4** 🆕 | 2026-03 | 活人感记忆对话系统；AI 优先引导；gpt-5.x/o-series 兼容；577 测试 ✅ |
+| **v3.2.0** 🆕 | 2026-03 | Web 对话界面（web/server.py + web/index.html）；深色地图科技感 UI；Flask API；版本迭代 |
+| **v3.1.4** | 2026-03 | 活人感记忆对话系统；AI 优先引导；gpt-5.x/o-series 兼容；577 测试 ✅ |
 | **v3.1.3** | 2026-03 | OpenClaw / AgentSkills 兼容导出；`agentskills_compat` 字段；`skill export` CLI |
 | **v3.1.2** | 2026-03 | 15 个内置 Skill 全就绪；对话驱动 user.md 更新；500 测试 ✅ |
 | **v3.1.1** | 2026-03 | render 函数修复；chat action；无 GUI 兼容 |
@@ -578,9 +615,9 @@ GeoClaw_Claude/
 
 | 文档 | 说明 |
 |------|------|
-| [Technical Reference v3.1.4](docs/GeoClaw-claude_Technical_Reference_v3.1.4.pdf) | 完整技术架构参考 |
-| [User Guide v3.1.4](docs/GeoClaw-claude_User_Guide_v3.1.4.pdf) | 用户使用手册 |
-| [Beginner Guide v3.1.4](docs/GeoClaw-claude_Beginner_Guide_v3.1.4.pdf) | 新手入门 |
+| [Technical Reference v3.2.0](docs/GeoClaw-claude_Technical_Reference_v3.2.0.pdf) | 完整技术架构参考 |
+| [User Guide v3.2.0](docs/GeoClaw-claude_User_Guide_v3.2.0.pdf) | 用户使用手册 |
+| [Beginner Guide v3.2.0](docs/GeoClaw-claude_Beginner_Guide_v3.2.0.pdf) | 新手入门 |
 | [Skill Writing Guide](docs/SKILL_WRITING_GUIDE.pdf) | Skill 编写规范（含 agentskills_compat 说明）|
 
 ---
