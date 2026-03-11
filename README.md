@@ -40,6 +40,7 @@
 - [人类移动性分析](#人类移动性分析)
 - [多 LLM Provider](#多-llm-provider)
 - [安装与依赖](#安装与依赖)
+- [更新](#更新)
 - [卸载与重装](#卸载与重装)
 - [项目结构](#项目结构)
 - [测试矩阵](#测试矩阵)
@@ -69,6 +70,12 @@ geoclaw-claude ask "下载武汉市医院数据，做 1 公里缓冲区，用交
 ```bash
 # 多轮对话模式（含活人感记忆）
 geoclaw-claude chat
+
+# 检查是否有新版本
+geoclaw-claude check
+
+# 一键更新到最新版本（git pull + pip install）
+geoclaw-claude update
 
 # 运行内置 Skill（无需 API Key）
 geoclaw-claude skill run retail_site_algo --data candidates.geojson --top_n=3
@@ -388,6 +395,40 @@ pip install sentence-transformers # 可选：向量语义检索增强
 | `trackintel ≥ 1.4.2` | 人类移动性分析 | 必须 |
 | `scipy` · `matplotlib` · `folium` | 统计 / 制图 | 必须 |
 | `click` | CLI 框架 | 必须 |
+
+---
+
+## 更新
+
+GeoClaw 支持一键原地更新，无需重新克隆仓库。要求安装时使用 `git clone`（非 zip 下载）。
+
+```bash
+# 检查是否有新版本（不下载任何内容）
+geoclaw-claude check
+
+# 一键更新：git pull + pip install，保留所有用户数据
+geoclaw-claude update
+
+# 强制重装当前版本（用于修复依赖问题）
+geoclaw-claude update --force
+
+# 更新后立即运行测试套件验证
+geoclaw-claude update --test
+
+# 只拉取代码，不重装包（高级用法）
+geoclaw-claude update --no-install
+```
+
+| 选项 | 效果 |
+|------|------|
+| *(无参数)* | 检测远程版本 → `git pull` → `pip install` |
+| `--force` | 跳过版本比较，强制执行完整更新流程 |
+| `--test` | 更新完成后运行内置测试套件，验证新版本正常 |
+| `--no-install` | 只执行 `git pull`，不重装 pip 包 |
+
+更新流程会自动打印 CHANGELOG 差异，并在完成后提示重启 Python 环境以加载新模块。用户数据（`~/.geoclaw_claude/`）**完全不受影响**。
+
+> **注意**：如果通过 zip 下载安装（非 `git clone`），`update` 命令会提示无法自动更新，并给出手动操作指引。此时可改用 `reinstall.sh` 重装。
 
 ---
 
