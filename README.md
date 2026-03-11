@@ -398,6 +398,24 @@ pip install sentence-transformers # 可选：向量语义检索增强
 
 ---
 
+## Web 对话界面
+
+GeoClaw 提供一个基于浏览器的对话前端，深色地图科技感主题，支持多轮对话、图层查看和示例指令快捷键。
+
+```bash
+# 启动 Web 服务（默认 http://localhost:7860）
+python web/server.py
+
+# 可选参数
+python web/server.py --port 8080      # 自定义端口
+python web/server.py --rule           # 离线规则模式（无需 API Key）
+python web/server.py --ai             # 强制 AI 模式
+```
+
+打开浏览器访问 `http://localhost:7860` 即可使用。前端为单文件无构建依赖，需安装 `flask` 和 `flask-cors`（`pip install flask flask-cors`）。
+
+---
+
 ## 更新
 
 GeoClaw 支持一键原地更新，无需重新克隆仓库。要求安装时使用 `git clone`（非 zip 下载）。

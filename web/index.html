@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GeoClaw · 智能地理空间分析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Noto+Sans+SC:wght@300;400&display=swap" rel="stylesheet">
+<style>
+/* ── 变量系统 ────────────────────────────────────────── */
+:root {
+  --ink:       #0d1117;
+  --ink-mid:   #131b24;
+  --ink-light: #1c2a38;
+  --teal:      #1de9b6;
+  --teal-dim:  #0d9e7e;
+  --teal-glow: rgba(29,233,182,0.12);
+  --teal-pale: rgba(29,233,182,0.06);
+  --amber:     #ffc947;
+  --sky:       #40c4ff;
+  --text-1:    #e8f0f7;
+  --text-2:    #8da3b9;
+  --text-3:    #4a6278;
+  --border:    rgba(29,233,182,0.15);
+  --border-dim:rgba(29,233,182,0.07);
+  --grid-color:rgba(29,233,182,0.04);
+  --radius:    10px;
+  --mono:      'JetBrains Mono', monospace;
+  --serif:     'Noto Serif SC', serif;
+  --sans:      'Noto Sans SC', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--ink);
+  color: var(--text-1);
+  font-family: var(--sans);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* ── 坐标格背景 ──────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(29,233,182,0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── 布局 ────────────────────────────────────────────── */
+#app {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: 100vh;
+  height: 100vh;
+}
+
+/* ── 侧边栏 ──────────────────────────────────────────── */
+#sidebar {
+  display: flex;
+  flex-direction: column;
+  background: rgba(13,17,23,0.92);
+  border-right: 1px solid var(--border-dim);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  animation: slideInLeft 0.6s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+/* logo区 */
+.logo-area {
+  padding: 28px 20px 20px;
+  border-bottom: 1px solid var(--border-dim);
+  position: relative;
+}
+.logo-area::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--teal), transparent);
+}
+.logo-mark {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+}
+.logo-icon {
+  width: 32px; height: 32px;
+  background: var(--ink-light);
+  border: 1px solid var(--teal-dim);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+  flex-shrink: 0;
+}
+.logo-icon::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: conic-gradient(from 0deg, transparent 60%, rgba(29,233,182,0.3) 100%);
+  animation: spin 8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.logo-icon svg { position: relative; z-index: 1; }
+.logo-name {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, #e8f0f7 30%, var(--teal));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.logo-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding-left: 42px;
+}
+
+/* 状态区 */
+.status-bar {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-dim);
+}
+.status-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--mono); font-size: 11px; color: var(--text-3);
+  padding: 3px 0;
+}
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text-3);
+  display: inline-block; margin-right: 6px; flex-shrink: 0;
+}
+.status-dot.active {
+  background: var(--teal);
+  box-shadow: 0 0 6px var(--teal);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; box-shadow: 0 0 6px var(--teal); }
+  50%      { opacity: 0.5; box-shadow: 0 0 12px var(--teal); }
+}
+.status-val { color: var(--text-2); }
+
+/* 快捷提示 */
+.hints-title {
+  padding: 16px 16px 8px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+  color: var(--text-3); text-transform: uppercase;
+}
+.hints-list { padding: 0 10px; flex: 1; overflow-y: auto; }
+.hints-list::-webkit-scrollbar { width: 3px; }
+.hints-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.hint-chip {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 10px; margin-bottom: 4px;
+  background: var(--teal-pale);
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left; width: 100%;
+}
+.hint-chip:hover {
+  background: var(--teal-glow);
+  border-color: var(--border);
+  transform: translateX(2px);
+}
+.hint-icon { font-size: 14px; margin-top: 1px; flex-shrink: 0; }
+.hint-text {
+  font-size: 12px; color: var(--text-2); line-height: 1.5;
+  font-family: var(--sans);
+}
+
+/* 底部信息 */
+.sidebar-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-dim);
+  font-family: var(--mono); font-size: 10px; color: var(--text-3);
+}
+.sidebar-foot a { color: var(--teal-dim); text-decoration: none; }
+.sidebar-foot a:hover { color: var(--teal); }
+
+/* ── 主区域 ──────────────────────────────────────────── */
+#main {
+  display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden;
+}
+
+/* 顶栏 */
+#topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  height: 52px;
+  border-bottom: 1px solid var(--border-dim);
+  background: rgba(13,17,23,0.7);
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+  animation: fadeDown 0.5s ease both 0.3s;
+}
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.topbar-left {
+  display: flex; align-items: center; gap: 12px;
+}
+.session-badge {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-3); padding: 3px 8px;
+  background: var(--ink-light);
+  border: 1px solid var(--border-dim);
+  border-radius: 4px;
+}
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 7px;
+  border: 1px solid var(--border-dim);
+  background: transparent;
+  color: var(--text-3);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s;
+}
+.icon-btn:hover { background: var(--teal-pale); color: var(--teal); border-color: var(--border); }
+.icon-btn svg { width: 15px; height: 15px; }
+
+/* 消息流 */
+#messages {
+  flex: 1; overflow-y: auto;
+  padding: 24px 32px;
+  scroll-behavior: smooth;
+}
+#messages::-webkit-scrollbar { width: 4px; }
+#messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.msg-row {
+  display: flex; gap: 12px;
+  margin-bottom: 20px;
+  animation: msgIn 0.35s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg-row.user { flex-direction: row-reverse; }
+
+.avatar {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+  font-family: var(--mono);
+}
+.avatar.geo {
+  background: linear-gradient(135deg, var(--ink-light), rgba(29,233,182,0.15));
+  border: 1px solid var(--teal-dim);
+  color: var(--teal);
+}
+.avatar.user-av {
+  background: linear-gradient(135deg, rgba(64,196,255,0.15), rgba(64,196,255,0.05));
+  border: 1px solid rgba(64,196,255,0.3);
+  color: var(--sky);
+}
+
+.bubble {
+  max-width: 72%;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  line-height: 1.75;
+  position: relative;
+}
+.bubble.geo-bubble {
+  background: var(--ink-mid);
+  border: 1px solid var(--border-dim);
+  color: var(--text-1);
+  border-top-left-radius: 3px;
+}
+.bubble.geo-bubble::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, var(--teal-dim), transparent 60%);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.bubble.user-bubble {
+  background: linear-gradient(135deg, rgba(64,196,255,0.1), rgba(64,196,255,0.05));
+  border: 1px solid rgba(64,196,255,0.2);
+  color: var(--text-1);
+  border-top-right-radius: 3px;
+}
+.meta-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 6px;
+  font-family: var(--mono); font-size: 10px; color: var(--text-3);
+}
+.meta-chip {
+  padding: 1px 6px;
+  background: var(--ink-light);
+  border: 1px solid var(--border-dim);
+  border-radius: 3px;
+  color: var(--teal-dim);
+}
+
+/* 加载动效 */
+.typing-dots {
+  display: flex; gap: 5px; padding: 4px 0;
+}
+.typing-dots span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--teal-dim);
+  animation: dot 1.2s ease-in-out infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot {
+  0%,80%,100% { transform: scale(0.6); opacity: 0.4; }
+  40%          { transform: scale(1);   opacity: 1; }
+}
+
+/* 欢迎 banner */
+.welcome-banner {
+  text-align: center;
+  padding: 40px 20px 32px;
+  animation: fadeUp 0.7s ease both 0.5s;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.welcome-title {
+  font-family: var(--serif);
+  font-size: 28px; font-weight: 300;
+  background: linear-gradient(135deg, var(--text-1) 40%, var(--teal));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 10px;
+  letter-spacing: 0.02em;
+}
+.welcome-sub {
+  font-family: var(--mono); font-size: 12px;
+  color: var(--text-3); letter-spacing: 0.08em;
+  margin-bottom: 24px;
+}
+.coord-decoration {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--text-3); opacity: 0.5;
+  letter-spacing: 0.1em;
+}
+
+/* ── 输入区 ──────────────────────────────────────────── */
+#input-area {
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border-dim);
+  background: rgba(13,17,23,0.85);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+  animation: fadeUp 0.5s ease both 0.4s;
+}
+.input-shell {
+  display: flex; align-items: flex-end; gap: 10px;
+  background: var(--ink-mid);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px 10px 16px;
+  transition: all 0.25s;
+  position: relative;
+}
+.input-shell::before {
+  content: '';
+  position: absolute; top: -1px; left: 20px; right: 20px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--teal-dim), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.input-shell:focus-within {
+  border-color: var(--teal-dim);
+  box-shadow: 0 0 0 3px var(--teal-pale), 0 0 20px rgba(29,233,182,0.05);
+}
+.input-shell:focus-within::before { opacity: 1; }
+#user-input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text-1); font-family: var(--sans);
+  font-size: 14px; line-height: 1.6;
+  resize: none; min-height: 24px; max-height: 120px;
+  overflow-y: auto;
+}
+#user-input::placeholder { color: var(--text-3); }
+#user-input::-webkit-scrollbar { width: 3px; }
+#user-input::-webkit-scrollbar-thumb { background: var(--border); }
+.send-btn {
+  width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+  background: var(--teal-dim);
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink); transition: all 0.2s;
+}
+.send-btn:hover:not(:disabled) {
+  background: var(--teal);
+  box-shadow: 0 0 12px rgba(29,233,182,0.4);
+  transform: scale(1.05);
+}
+.send-btn:disabled { background: var(--ink-light); color: var(--text-3); cursor: default; }
+.send-btn svg { width: 16px; height: 16px; }
+
+.input-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 4px 0;
+  font-family: var(--mono); font-size: 10px; color: var(--text-3);
+}
+.input-hint { display: flex; gap: 16px; }
+.key-hint { display: flex; align-items: center; gap: 4px; }
+.kbd {
+  padding: 1px 5px; background: var(--ink-light);
+  border: 1px solid var(--border-dim); border-radius: 3px;
+  font-size: 9px; color: var(--text-3);
+}
+
+/* ── 代码块格式化 ──────────────────────────────────────*/
+.bubble pre {
+  background: rgba(0,0,0,0.4); border: 1px solid var(--border-dim);
+  border-radius: 6px; padding: 10px 12px; margin: 8px 0;
+  overflow-x: auto; font-family: var(--mono); font-size: 12px;
+  color: var(--teal);
+}
+.bubble code {
+  font-family: var(--mono); font-size: 12px;
+  background: rgba(29,233,182,0.08); color: var(--teal);
+  padding: 1px 5px; border-radius: 3px;
+}
+.bubble pre code { background: none; padding: 0; }
+
+/* ── 图层浮动面板 ──────────────────────────────────────*/
+#layers-panel {
+  display: none;
+  position: fixed; top: 64px; right: 16px; z-index: 100;
+  width: 220px;
+  background: var(--ink-mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+  padding: 12px;
+  animation: popIn 0.25s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+#layers-panel.show { display: block; }
+.panel-title {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+  color: var(--text-3); text-transform: uppercase; margin-bottom: 10px;
+}
+.layer-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 6px;
+  background: var(--teal-pale); border: 1px solid var(--border-dim);
+  margin-bottom: 4px;
+  font-family: var(--mono); font-size: 11px; color: var(--text-2);
+}
+.layer-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); flex-shrink: 0; }
+.no-layers { color: var(--text-3); font-family: var(--mono); font-size: 11px; }
+
+/* ── Toast ──────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: var(--ink-mid); border: 1px solid var(--teal-dim);
+  color: var(--text-1); font-family: var(--mono); font-size: 12px;
+  padding: 8px 16px; border-radius: 6px;
+  box-shadow: 0 0 20px rgba(29,233,182,0.2);
+  display: none; z-index: 200;
+  animation: toastIn 0.3s ease;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── 响应式 ─────────────────────────────────────────── */
+@media (max-width: 720px) {
+  #app { grid-template-columns: 1fr; }
+  #sidebar { display: none; }
+  #messages { padding: 16px; }
+  #input-area { padding: 12px 16px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ═══ 侧边栏 ═══ -->
+  <aside id="sidebar">
+    <div class="logo-area">
+      <div class="logo-mark">
+        <div class="logo-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="3" stroke="#1de9b6" stroke-width="1.2"/>
+            <path d="M8 1v2M8 13v2M1 8h2M13 8h2" stroke="#1de9b6" stroke-width="1" stroke-linecap="round"/>
+            <path d="M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M11.1 4.9l-1.4 1.4M4.9 11.1l-1.4 1.4" stroke="#1de9b6" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+          </svg>
+        </div>
+        <span class="logo-name">GeoClaw</span>
+      </div>
+      <div class="logo-sub">Urban Comp Lab · CUG(W)</div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-row">
+        <span><span class="status-dot active" id="dot-ai"></span>引擎</span>
+        <span class="status-val" id="st-provider">加载中…</span>
+      </div>
+      <div class="status-row">
+        <span><span class="status-dot" id="dot-sess"></span>会话</span>
+        <span class="status-val" id="st-session">—</span>
+      </div>
+      <div class="status-row">
+        <span><span class="status-dot"></span>图层</span>
+        <span class="status-val" id="st-layers">0</span>
+      </div>
+    </div>
+
+    <div class="hints-title">示例指令</div>
+    <div class="hints-list" id="hints-list">
+      <button class="hint-chip" data-text="下载武汉市医院 POI 数据，生成 1km 服务范围缓冲区">
+        <span class="hint-icon">🏥</span>
+        <span class="hint-text">医院服务范围分析</span>
+      </button>
+      <button class="hint-chip" data-text="计算武汉大学到武汉站的最短路径，在地图上显示">
+        <span class="hint-icon">🛣️</span>
+        <span class="hint-text">最短路径规划</span>
+      </button>
+      <button class="hint-chip" data-text="从 OSM 下载武汉市餐饮 POI，做核密度估计，生成热力图">
+        <span class="hint-icon">🗺️</span>
+        <span class="hint-text">餐饮密度热力分析</span>
+      </button>
+      <button class="hint-chip" data-text="生成武汉大学 2km 步行等时圈，导出为 GeoJSON">
+        <span class="hint-icon">⏱️</span>
+        <span class="hint-text">步行等时圈分析</span>
+      </button>
+      <button class="hint-chip" data-text="运行 hospital_coverage Skill 分析武汉医疗资源覆盖">
+        <span class="hint-icon">⚙️</span>
+        <span class="hint-text">内置 Skill 调用</span>
+      </button>
+      <button class="hint-chip" data-text="帮我查看当前已加载的图层列表">
+        <span class="hint-icon">📐</span>
+        <span class="hint-text">查看图层状态</span>
+      </button>
+      <button class="hint-chip" data-text="解释 GeoClaw 的记忆系统是怎么工作的">
+        <span class="hint-icon">🧠</span>
+        <span class="hint-text">了解记忆系统</span>
+      </button>
+    </div>
+
+    <div class="sidebar-foot">
+      v3.1.4 · <a href="https://github.com/whuyao/GeoClaw_Claude" target="_blank">GitHub</a> · <a href="https://urbancomp.net" target="_blank">UrbanComp Lab</a>
+    </div>
+  </aside>
+
+  <!-- ═══ 主区 ═══ -->
+  <div id="main">
+    <div id="topbar">
+      <div class="topbar-left">
+        <span class="session-badge" id="sess-badge">SESSION —</span>
+      </div>
+      <div class="topbar-right">
+        <!-- 图层按钮 -->
+        <button class="icon-btn" id="btn-layers" title="查看图层">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
+            <line x1="12" y1="22" x2="12" y2="15.5"/>
+            <polyline points="2 8.5 12 15.5 22 8.5"/>
+          </svg>
+        </button>
+        <!-- 新会话 -->
+        <button class="icon-btn" id="btn-reset" title="新建会话">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="messages">
+      <div class="welcome-banner" id="welcome">
+        <div class="welcome-title">你好，探索者</div>
+        <div class="welcome-sub">GEOCLAW · INTELLIGENT GIS PLATFORM · v3.1.4</div>
+        <div class="coord-decoration">114°21'E · 30°32'N · WUHAN</div>
+      </div>
+    </div>
+
+    <div id="input-area">
+      <div class="input-shell">
+        <textarea id="user-input" placeholder="输入空间分析指令，或直接聊天…" rows="1"></textarea>
+        <button class="send-btn" id="send-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-footer">
+        <div class="input-hint">
+          <span class="key-hint"><kbd class="kbd">Enter</kbd> 发送</span>
+          <span class="key-hint"><kbd class="kbd">Shift+Enter</kbd> 换行</span>
+        </div>
+        <span id="char-count" style="color:var(--text-3)"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 图层面板 -->
+<div id="layers-panel">
+  <div class="panel-title">▦ 当前图层</div>
+  <div id="layers-content"><span class="no-layers">暂无图层</span></div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+const API = '';  // 同源，空字符串
+let sessionId = null;
+let msgCount  = 0;
+let isLoading = false;
+
+// ── 工具函数 ──────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function showToast(msg, dur=2500) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display='none'; }, dur);
+}
+
+function scrollBottom() {
+  const m = $('messages');
+  m.scrollTo({ top: m.scrollHeight, behavior: 'smooth' });
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatText(text) {
+  // 代码块
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre><code>${escapeHtml(code.trim())}</code></pre>`);
+  // 行内代码
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // 加粗
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  // 换行
+  text = text.replace(/\n/g, '<br>');
+  return text;
+}
+
+// ── 添加消息气泡 ──────────────────────────────────────
+function addMsg(role, content, meta={}) {
+  const wrap = $('messages');
+  const welcome = $('welcome');
+  if (welcome) welcome.style.display='none';
+
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+
+  const avatarText = role === 'user' ? '你' : 'GC';
+  const avatarClass = role === 'user' ? 'user-av' : 'geo';
+  const bubbleClass = role === 'user' ? 'user-bubble' : 'geo-bubble';
+
+  let metaHtml = '';
+  if (role !== 'user' && (meta.elapsed || meta.provider)) {
+    const chips = [];
+    if (meta.provider) chips.push(`<span class="meta-chip">${meta.provider}</span>`);
+    if (meta.elapsed)  chips.push(`${meta.elapsed}s`);
+    metaHtml = `<div class="meta-row">${chips.join('')}<span>${chips.length?'·':''} ${chips.length?meta.elapsed+'s':''}</span></div>`;
+    // simpler
+    metaHtml = `<div class="meta-row">${meta.provider?`<span class="meta-chip">${meta.provider}</span>`:''}${meta.elapsed?`<span>${meta.elapsed}s</span>`:''}</div>`;
+  }
+
+  row.innerHTML = `
+    <div class="avatar ${avatarClass}">${avatarText}</div>
+    <div class="bubble ${bubbleClass}">
+      <div class="bubble-content">${formatText(content)}</div>
+      ${metaHtml}
+    </div>`;
+
+  wrap.appendChild(row);
+  scrollBottom();
+  return row;
+}
+
+// 加载中占位
+function addLoading() {
+  const wrap = $('messages');
+  const row = document.createElement('div');
+  row.className = 'msg-row';
+  row.id = 'loading-row';
+  row.innerHTML = `
+    <div class="avatar geo">GC</div>
+    <div class="bubble geo-bubble">
+      <div class="typing-dots"><span></span><span></span><span></span></div>
+    </div>`;
+  wrap.appendChild(row);
+  scrollBottom();
+}
+function removeLoading() {
+  const r = $('loading-row');
+  if (r) r.remove();
+}
+
+// ── 状态轮询 ──────────────────────────────────────────
+async function refreshStatus() {
+  try {
+    const res = await fetch(`${API}/api/status`);
+    const d   = await res.json();
+    $('st-provider').textContent = d.provider || (d.is_ai?'AI':'规则');
+    $('st-session').textContent  = d.session_id || '—';
+    $('st-layers').textContent   = (d.layers||[]).length;
+    $('dot-ai').className = 'status-dot' + (d.is_ai?' active':'');
+    $('dot-sess').className = 'status-dot' + (d.session_id?' active':'');
+    if (d.session_id) {
+      sessionId = d.session_id;
+      $('sess-badge').textContent = 'SESSION ' + d.session_id.slice(-6).toUpperCase();
+    }
+  } catch(e) { $('st-provider').textContent = '离线'; }
+}
+
+// ── 发送消息 ──────────────────────────────────────────
+async function sendMessage() {
+  if (isLoading) return;
+  const input = $('user-input');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = '';
+  isLoading = true;
+  $('send-btn').disabled = true;
+
+  addMsg('user', text);
+  addLoading();
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }),
+    });
+    const d = await res.json();
+    removeLoading();
+    if (d.error) {
+      addMsg('', `⚠ 错误：${d.error}`, {});
+    } else {
+      addMsg('', d.reply, { elapsed: d.elapsed, provider: d.provider||'' });
+      refreshStatus();
+    }
+  } catch(e) {
+    removeLoading();
+    addMsg('', `⚠ 无法连接服务器。请确认已运行：<code>python web/server.py</code>`, {});
+  }
+
+  isLoading = false;
+  $('send-btn').disabled = false;
+  input.focus();
+}
+
+// ── 新建会话 ──────────────────────────────────────────
+async function resetSession() {
+  try {
+    await fetch(`${API}/api/reset`, { method:'POST' });
+    $('messages').innerHTML = `
+      <div class="welcome-banner" id="welcome">
+        <div class="welcome-title">新会话已开始</div>
+        <div class="welcome-sub">GEOCLAW · INTELLIGENT GIS PLATFORM · v3.1.4</div>
+        <div class="coord-decoration">114°21'E · 30°32'N · WUHAN</div>
+      </div>`;
+    refreshStatus();
+    showToast('✓ 新会话已创建');
+  } catch(e) { showToast('重置失败'); }
+}
+
+// ── 图层面板 ──────────────────────────────────────────
+let layersOpen = false;
+async function toggleLayers() {
+  const panel = $('layers-panel');
+  layersOpen = !layersOpen;
+  if (layersOpen) {
+    panel.classList.add('show');
+    try {
+      const res = await fetch(`${API}/api/layers`);
+      const d   = await res.json();
+      const list = d.layers || [];
+      $('layers-content').innerHTML = list.length
+        ? list.map(l => `<div class="layer-item"><span class="layer-dot"></span>${l}</div>`).join('')
+        : '<span class="no-layers">暂无已加载图层</span>';
+    } catch(e) { $('layers-content').innerHTML = '<span class="no-layers">获取失败</span>'; }
+  } else {
+    panel.classList.remove('show');
+  }
+}
+
+// 点击外部关闭图层面板
+document.addEventListener('click', e => {
+  if (layersOpen && !$('layers-panel').contains(e.target) && e.target !== $('btn-layers')) {
+    $('layers-panel').classList.remove('show');
+    layersOpen = false;
+  }
+});
+
+// ── 事件绑定 ──────────────────────────────────────────
+$('send-btn').addEventListener('click', sendMessage);
+$('btn-reset').addEventListener('click', resetSession);
+$('btn-layers').addEventListener('click', toggleLayers);
+
+$('user-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// 自动调整高度
+$('user-input').addEventListener('input', function() {
+  this.style.height = '';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  const len = this.value.length;
+  $('char-count').textContent = len > 50 ? len + ' 字' : '';
+});
+
+// 快捷提示点击
+document.querySelectorAll('.hint-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $('user-input').value = btn.dataset.text;
+    $('user-input').dispatchEvent(new Event('input'));
+    $('user-input').focus();
+  });
+});
+
+// ── 初始化 ────────────────────────────────────────────
+refreshStatus();
+setInterval(refreshStatus, 10000);
+$('user-input').focus();
+</script>
+</body>
+</html>
