@@ -40,6 +40,7 @@
 - [人类移动性分析](#人类移动性分析)
 - [多 LLM Provider](#多-llm-provider)
 - [安装与依赖](#安装与依赖)
+- [卸载与重装](#卸载与重装)
 - [项目结构](#项目结构)
 - [测试矩阵](#测试矩阵)
 - [版本历史](#版本历史)
@@ -60,6 +61,8 @@ geoclaw-claude onboard
 # 3. 开始分析
 geoclaw-claude ask "下载武汉市医院数据，做 1 公里缓冲区，用交互地图显示"
 ```
+
+如需卸载或重装，参见 [卸载与重装](#卸载与重装) 章节。
 
 更多用法：
 
@@ -385,6 +388,57 @@ pip install sentence-transformers # 可选：向量语义检索增强
 | `trackintel ≥ 1.4.2` | 人类移动性分析 | 必须 |
 | `scipy` · `matplotlib` · `folium` | 统计 / 制图 | 必须 |
 | `click` | CLI 框架 | 必须 |
+
+---
+
+## 卸载与重装
+
+### 卸载
+
+```bash
+# 卸载包，保留 ~/.geoclaw_claude/（配置、记忆、缓存）
+bash uninstall.sh
+
+# 卸载包 + 彻底删除用户数据（不可恢复）
+bash uninstall.sh --purge
+
+# 预览将执行的操作，不实际删除任何内容
+bash uninstall.sh --dry-run
+```
+
+| 选项 | 效果 |
+|------|------|
+| *(无参数)* | 卸载 pip 包和 CLI，**保留** `~/.geoclaw_claude/` 用户数据 |
+| `--purge` | 同上，并**删除** `~/.geoclaw_claude/`（配置/记忆/缓存全部清除）|
+| `--dry-run` | 仅预览操作，不实际删除任何内容 |
+
+> `~/.geoclaw_claude/` 目录包含你的配置文件、长期记忆和会话缓存。默认卸载时**不会**删除，重装后仍可恢复使用。
+
+### 重装
+
+```bash
+# 标准重装：卸载旧版本重新安装，保留用户数据
+bash reinstall.sh
+
+# 清数据重装：用户数据重置为全新状态
+bash reinstall.sh --clean
+
+# 开发模式重装：代码修改即时生效（适合二次开发）
+bash reinstall.sh --dev
+
+# 最小重装：跳过 osmnx / rasterio 等大型依赖
+bash reinstall.sh --mini
+
+# 组合示例：清数据 + 开发模式
+bash reinstall.sh --clean --dev
+```
+
+| 选项 | 效果 |
+|------|------|
+| *(无参数)* | 卸载旧版 → 重装，**保留**用户数据 |
+| `--clean` | 卸载旧版 → 清空 `~/.geoclaw_claude/` → 重装（全新开始）|
+| `--dev` | 可编辑安装（`pip install -e .`），适合开发调试 |
+| `--mini` | 跳过 `osmnx`、`rasterio`、`anthropic` 等大型依赖 |
 
 ---
 
